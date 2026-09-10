@@ -46,10 +46,12 @@ const dbPath = path.join(
   "vsmart-memory.db"
 );
 
-console.log(
-  "[VSmart AI] SQLite database path:",
-  dbPath
-);
+if (process.env.NODE_ENV !== "production") {
+  console.log(
+    "[VSmart AI] SQLite database path:",
+    dbPath
+  );
+}
 
 // ------------------------------------------------------------
 // Open database

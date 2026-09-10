@@ -97,6 +97,26 @@ export function loadProfile(): UserProfile {
 export function saveProfile(p: UserProfile) {
   localStorage.setItem(PROFILE_KEY, JSON.stringify(p));
   window.dispatchEvent(new CustomEvent("vsmart-profile-updated", { detail: p }));
+  // Durable, cross-window copy — same hybrid pattern as useTheme.ts.
+  window.vsmart?.saveMemory?.(PROFILE_KEY, JSON.stringify(p)).catch(() => {});
+}
+
+/**
+ * Reconciles the localStorage cache with the durable SQLite-backed store.
+ * Returns the profile to apply if it differs from what's cached, or null
+ * if nothing changed / the store is unavailable.
+ */
+export async function reconcileProfileFromMemory(current: UserProfile): Promise<UserProfile | null> {
+  try {
+    const raw = await window.vsmart?.getMemory?.(PROFILE_KEY);
+    if (!raw || typeof raw !== "string") return null;
+    const next: UserProfile = { ...DEFAULT_PROFILE, ...JSON.parse(raw) };
+    if (JSON.stringify(next) === JSON.stringify(current)) return null;
+    localStorage.setItem(PROFILE_KEY, JSON.stringify(next));
+    return next;
+  } catch {
+    return null;
+  }
 }
 
 const ICON_OPTIONS: SocialLink["icon"][] = [

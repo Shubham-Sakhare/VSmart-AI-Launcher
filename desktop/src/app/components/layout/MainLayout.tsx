@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
-import { MessageSquare } from "lucide-react";
+import { MessageSquare, Mic } from "lucide-react";
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
-import BottomBar from "./BottomBar";
 import TaskBar from "./TaskBar";
 import SettingsPanel from "./SettingsPanel";
 import CommandCenter from "../dashboard/CommandCenter";
@@ -52,13 +51,11 @@ const SIDEBAR_KEY = "sidebar_settings";
 const MAX_HISTORY_MESSAGES = 10;
 
 const DEFAULT_SIDEBAR_ITEMS: SidebarItem[] = [
-  { page: "dashboard", label: "Command Center", enabled: true },
-  { page: "agents", label: "Analysis", enabled: true },
-  { page: "tasks", label: "Tasks", enabled: true },
-  { page: "calendar", label: "Calendar", enabled: true },
-  { page: "memory", label: "VSmart AI", enabled: true },
-  { page: "conversations", label: "Conversations", enabled: true },
-  { page: "tools", label: "Tools & Skills", enabled: true }
+  { page: "dashboard", label: "Home", enabled: true },
+  { page: "agents", label: "Apps", enabled: true },
+  { page: "tasks", label: "Files", enabled: true },
+  { page: "memory", label: "Workspace", enabled: true },
+  { page: "tools", label: "Terminal", enabled: true }
 ];
 
 function makeTitle(messages: Message[]): string {
@@ -78,7 +75,9 @@ export default function MainLayout() {
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [conversationsLoaded, setConversationsLoaded] = useState(false);
   const [replyLang, setReplyLang] = useState<ReplyLang>("en");
-  const [wakeWordEnabled, setWakeWordEnabled] = useState(false);
+  const [wakeWordEnabled, setWakeWordEnabled] = useState(
+    () => localStorage.getItem("vsmart_wakeword") === "true"
+  );
   const [historyTrigger, setHistoryTrigger] = useState(0);
 
   const [sidebarEnabled, setSidebarEnabled] = useState(true);
@@ -91,7 +90,19 @@ export default function MainLayout() {
         if (raw) {
           const saved = JSON.parse(raw);
           setSidebarEnabled(saved.enabled);
-          setSidebarItems(saved.items);
+          // Merge with the current defaults instead of trusting the saved
+          // list verbatim — older saves may reference pages/labels
+          // ("Calendar", "Conversations", "Analysis"...) that no longer
+          // exist in the sidebar, which made their toggles do nothing.
+          const savedByPage: Record<string, SidebarItem> = {};
+          (Array.isArray(saved.items) ? saved.items : []).forEach((it: SidebarItem) => {
+            savedByPage[it.page] = it;
+          });
+          const merged = DEFAULT_SIDEBAR_ITEMS.map((def) => ({
+            ...def,
+            enabled: savedByPage[def.page]?.enabled ?? def.enabled
+          }));
+          setSidebarItems(merged);
         }
       } catch {}
     })();
@@ -270,6 +281,11 @@ export default function MainLayout() {
     }
   };
 
+  // Single shared voice-assistant identity — the Orb, the dock mic, and
+  // the mic inside the chat widget are all the same assistant, just
+  // different entry points into the same useVoice instance. All of them
+  // route through sendCommand -> askVSmart, so context/memory stays one
+  // continuous thread no matter which UI element triggered it.
   const voice = useVoice({
     onCommand: sendCommand,
     wakeWordEnabled
@@ -292,6 +308,10 @@ export default function MainLayout() {
           <CommandCenter
             messages={messages}
             voice={voice}
+            onOpenChat={() => {
+              setChatOpen(true);
+              setChatMinimized(false);
+            }}
           />
         );
       case "agents":
@@ -309,6 +329,10 @@ export default function MainLayout() {
           <CommandCenter
             messages={messages}
             voice={voice}
+            onOpenChat={() => {
+              setChatOpen(true);
+              setChatMinimized(false);
+            }}
           />
         );
     }
@@ -323,6 +347,7 @@ export default function MainLayout() {
           voice={voice}
           sidebarEnabled={sidebarEnabled}
           sidebarItems={sidebarItems}
+          onOpenSettings={() => setSettingsOpen(true)}
         />
 
         <main className="main-content">
@@ -330,8 +355,6 @@ export default function MainLayout() {
           <section className="page-content">{renderPage()}</section>
         </main>
       </div>
-
-      <BottomBar voice={voice} />
 
       <TaskBar activePage={activePage} onNavigate={handleNavigate} voice={voice} />
 
@@ -360,20 +383,42 @@ export default function MainLayout() {
         replyLang={replyLang}
         onLangChange={setReplyLang}
         wakeWordEnabled={wakeWordEnabled}
-        onWakeWordChange={setWakeWordEnabled}
+        onWakeWordChange={(v: boolean) => {
+          localStorage.setItem("vsmart_wakeword", String(v));
+          setWakeWordEnabled(v);
+        }}
         sidebarEnabled={sidebarEnabled}
         sidebarItems={sidebarItems}
         onSidebarChange={updateSidebarSettings}
       />
 
       {!chatOpen && (
-        <button
-          className="chat-launcher"
-          onClick={() => setChatOpen(true)}
-          title="Open chat"
-        >
-          <MessageSquare size={22} />
-        </button>
+        <div className="ask-vind-dock">
+          <button
+            className="ask-vind-pill"
+            onClick={() => {
+              setChatOpen(true);
+              setChatMinimized(false);
+            }}
+            title="Ask V-IND AI"
+          >
+            <span className="ask-vind-icon-badge">
+              <MessageSquare size={15} />
+            </span>
+            <span>Ask V-IND AI</span>
+          </button>
+
+          <button
+            className={voice.listening ? "ask-vind-mic listening" : "ask-vind-mic"}
+            onClick={voice.toggleListening}
+            title="Talk to V-IND AI"
+          >
+            <span className="ask-vind-mic-ring" aria-hidden="true" />
+            <span className="ask-vind-mic-core">
+              <Mic size={16} />
+            </span>
+          </button>
+        </div>
       )}
     </div>
   );

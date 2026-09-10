@@ -452,14 +452,38 @@
     white-space:pre;
 }
 
+.vsai-code-block-header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:6px;
+}
+
 .vsai-code-lang{
-    display:block;
     font-size:10px;
     text-transform:uppercase;
     letter-spacing:.5px;
     color:var(--accent);
     opacity:.7;
-    margin-bottom:6px;
+}
+
+.vsai-code-copy-btn{
+    display:flex;
+    align-items:center;
+    gap:4px;
+    background:rgba(var(--accent-rgb), .1);
+    border:1px solid rgba(var(--accent-rgb), .2);
+    border-radius:6px;
+    padding:3px 8px;
+    font-size:11px;
+    color:var(--text-dim);
+    cursor:pointer;
+    transition:.15s;
+}
+
+.vsai-code-copy-btn:hover{
+    background:rgba(var(--accent-rgb), .2);
+    color:var(--text-primary);
 }
 
 .vsai-md-list{
@@ -561,7 +585,9 @@
     font-size:14px;
     font-family:inherit;
     max-height:140px;
+    overflow-y:auto;
     padding:6px 0;
+    transition:height .1s ease;
 }
 
 .vsai-input-box textarea::placeholder{
@@ -593,6 +619,47 @@
     cursor:default;
     box-shadow:none;
     transform:none;
+}
+
+.vsai-stop-btn{
+    background:rgba(var(--accent-rgb), .15);
+    color:var(--text-primary);
+    border:1px solid rgba(var(--accent-rgb), .4);
+}
+
+.vsai-stop-btn:hover{
+    background:rgba(var(--accent-rgb), .25);
+    box-shadow:0 0 16px rgba(var(--accent-rgb), .3);
+    transform:scale(1.05);
+}
+
+/* Inline collapse for long AI replies — full markdown still renders, we
+   just clamp the height and fade the bottom edge instead of cutting the
+   raw text mid-word/mid-markdown. */
+.vsai-bubble-text.collapsed{
+    max-height:260px;
+    overflow:hidden;
+    position:relative;
+    mask-image:linear-gradient(to bottom, #000 75%, transparent 100%);
+    -webkit-mask-image:linear-gradient(to bottom, #000 75%, transparent 100%);
+}
+
+.vsai-show-more-btn{
+    display:flex;
+    align-items:center;
+    gap:4px;
+    margin-top:6px;
+    background:none;
+    border:none;
+    color:var(--accent-2);
+    font-size:12px;
+    font-weight:600;
+    cursor:pointer;
+    padding:2px 0;
+}
+
+.vsai-show-more-btn:hover{
+    text-decoration:underline;
 }
 
 .vsai-input-footer{

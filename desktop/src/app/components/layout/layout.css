@@ -5,7 +5,8 @@
     height:100vh;
     box-sizing:border-box;
     overflow:hidden;
-    background:var(--bg-deep);
+    background:var(--bg-page);
+    background-attachment:fixed;
     padding:0;
     transition:padding .25s ease;
 }
@@ -119,4 +120,165 @@ body[data-taskbar-pos="left"] .chat-launcher{
 
 .page-content::-webkit-scrollbar-track{
     background:transparent;
+}
+/* ========== Ask V-IND AI dock (replaces old "Talk to VSmart" bar) ========== */
+/* Sits in the same row as the taskbar dock (not stacked above it), just
+   like the reference UI — same bottom offset as .taskbar.pos-bottom. */
+.ask-vind-dock{
+  position:fixed;
+  bottom: 10px;
+  right:24px;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  z-index:150;
+  transition: bottom .25s ease, right .25s ease;
+}
+
+body[data-taskbar-pos="right"] .ask-vind-dock{
+  right: calc(24px + var(--taskbar-size, 64px));
+  bottom: 24px;
+}
+
+body[data-taskbar-pos="left"] .ask-vind-dock{
+  right:24px;
+  bottom: 24px;
+}
+
+body[data-taskbar-pos="top"] .ask-vind-dock{
+  bottom: 24px;
+  top: 10px;
+}
+
+/* Shared glass base — same recipe as the taskbar pill: soft top sheen +
+   heavy blur/saturate + faint white hairline border, so both docks read
+   as one consistent glassy surface. */
+.ask-vind-pill,
+.ask-vind-mic{
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.14), rgba(255,255,255,0) 45%),
+    color-mix(in srgb, var(--bg-panel) 62%, transparent);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border: 1px solid rgba(255,255,255,.16);
+}
+
+.ask-vind-pill{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:10px 20px 10px 10px;
+  border-radius:999px;
+  color:#fff;
+  font-size:13px;
+  font-weight:600;
+  cursor:pointer;
+  box-shadow:
+    0 14px 34px rgba(0,0,0,.45),
+    0 0 0 1px rgba(255,255,255,.05) inset,
+    inset 0 1px 0 rgba(255,255,255,.18);
+  transition: transform .2s ease, box-shadow .2s ease, background .2s ease;
+}
+
+.ask-vind-icon-badge{
+  width:30px;
+  height:30px;
+  min-width:30px;
+  border-radius:10px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color:#fff;
+  background: linear-gradient(135deg, var(--accent-2), var(--accent-3), var(--accent));
+  box-shadow: 0 0 14px color-mix(in srgb, var(--accent-2) 55%, transparent);
+}
+
+.ask-vind-pill:hover{
+  transform:translateY(-2px);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.2), rgba(255,255,255,0) 45%),
+    color-mix(in srgb, var(--accent) 16%, color-mix(in srgb, var(--bg-panel) 62%, transparent));
+  box-shadow:
+    0 16px 40px rgba(0,0,0,.5),
+    0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent),
+    inset 0 1px 0 rgba(255,255,255,.24);
+}
+
+.ask-vind-mic{
+  position:relative;
+  width:52px;
+  height:52px;
+  min-width:52px;
+  border-radius:50%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color:var(--accent);
+  cursor:pointer;
+  box-shadow:
+    0 14px 34px rgba(0,0,0,.45),
+    0 0 0 1px rgba(255,255,255,.05) inset,
+    inset 0 1px 0 rgba(255,255,255,.18);
+  transition: transform .2s ease, box-shadow .2s ease, background .2s ease;
+}
+
+.ask-vind-mic:hover{
+  transform:scale(1.06);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.2), rgba(255,255,255,0) 45%),
+    color-mix(in srgb, var(--accent) 18%, color-mix(in srgb, var(--bg-panel) 62%, transparent));
+}
+
+/* Rotating segmented ring — dashed conic gradient spinning slowly,
+   matching the reference orb's broken-circle look. */
+.ask-vind-mic-ring{
+  position:absolute;
+  inset:4px;
+  border-radius:50%;
+  background:
+    conic-gradient(
+      from 0deg,
+      var(--accent) 0deg 60deg,
+      transparent 60deg 90deg,
+      var(--accent-2) 90deg 150deg,
+      transparent 150deg 190deg,
+      var(--accent) 190deg 260deg,
+      transparent 260deg 300deg,
+      var(--accent-2) 300deg 345deg,
+      transparent 345deg 360deg
+    );
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
+  animation: ask-mic-ring-spin 6s linear infinite;
+  opacity:.85;
+}
+
+@keyframes ask-mic-ring-spin{
+  to { transform: rotate(360deg); }
+}
+
+.ask-vind-mic-core{
+  position:relative;
+  width:30px;
+  height:30px;
+  border-radius:50%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color:#fff;
+  background: radial-gradient(circle at 35% 30%, var(--accent-3), var(--accent-2) 55%, var(--accent) 100%);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--accent) 60%, transparent);
+}
+
+.ask-vind-mic.listening .ask-vind-mic-ring{
+  animation: ask-mic-ring-spin 1.6s linear infinite;
+}
+
+.ask-vind-mic.listening{
+  animation: ask-mic-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes ask-mic-pulse{
+  0%, 100% { box-shadow: 0 0 0 0 rgba(var(--accent-rgb), .55), 0 0 0 1px rgba(255,255,255,.08) inset; }
+  50% { box-shadow: 0 0 0 12px rgba(var(--accent-rgb), 0), 0 0 0 1px rgba(255,255,255,.08) inset; }
 }

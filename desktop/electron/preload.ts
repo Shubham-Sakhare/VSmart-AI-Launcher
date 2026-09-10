@@ -1,6 +1,8 @@
-console.log("VSMART PRELOAD LOADED");
-
 import{contextBridge,ipcRenderer}from"electron";
+
+if (process.env.NODE_ENV !== "production") {
+  console.log("VSMART PRELOAD LOADED");
+}
 
 contextBridge.exposeInMainWorld("vsmart",{
 
@@ -214,6 +216,14 @@ ipcRenderer.send("voice:audio-chunk",chunk),
 reset:()=>
 ipcRenderer.send("voice:reset"),
 
+/** Whisper is batch-based — call this once the renderer's own VAD/silence
+    detection decides the turn is over, to get the transcript back.
+    Pass the current reply language ("en"/"hi") so Whisper decodes with an
+    explicit language hint instead of "auto" — auto-detect is unreliable on
+    short clips and can misfire into the wrong language entirely. */
+finalize:(lang?:string)=>
+ipcRenderer.invoke("voice:finalize",lang),
+
 
 onPartialResult:(callback:(text:string)=>void)=>{
 
@@ -237,6 +247,16 @@ ipcRenderer.on(
 );
 
 }
+
+},
+
+/** Natural neural text-to-speech (Microsoft Edge voices) — returns a base64
+    audio data URL to play, or null if unavailable (e.g. no internet), in
+    which case the renderer falls back to the offline browser voice. */
+tts:{
+
+synthesize:(text:string,lang:"en"|"hi",gender:"male"|"female")=>
+ipcRenderer.invoke("tts:synthesize",text,lang,gender)
 
 },
 

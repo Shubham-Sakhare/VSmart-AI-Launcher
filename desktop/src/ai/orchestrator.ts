@@ -29,13 +29,27 @@ export async function orchestrate(
   const results: string[] = [];
   let allSucceeded = true;
 
+  // Each step now sees the ORIGINAL conversation history PLUS every
+  // previous step's outcome from this same multi-step command, appended
+  // as assistant turns. So step 2 knows what step 1 actually did —
+  // e.g. "open notepad, then type my name in it" -> step 2's agent can
+  // see notepad was just opened, instead of acting blind.
+  const runningHistory: ChatHistoryMessage[] = [...history];
+
   for (const step of steps) {
-    // Multi-step commands are treated as one turn split into pieces, not
-    // separate conversational turns, so prior chat history isn't threaded
-    // into each individual step here.
-    const result = await route(step, lang);
+    const result = await route(step, lang, runningHistory);
     if (!result.success) allSucceeded = false;
-    results.push(result.message ?? "");
+
+    const stepMessage = result.message ?? "";
+    results.push(stepMessage);
+
+    // Record this step as a completed turn so the next step has context.
+    runningHistory.push({ role: "user", content: step });
+    runningHistory.push({ role: "assistant", content: stepMessage });
+
+    // Stop the chain early if a step failed — running later steps after
+    // a failure usually compounds the error instead of recovering it.
+    if (!result.success) break;
   }
 
   const combined = results

@@ -7,14 +7,6 @@ export interface ChatHistoryMessage {
   content: string;
 }
 
-// A single prior turn of the conversation, used to give the AI real
-// short-term memory (e.g. "give me an example of that" needs to know what
-// "that" refers to).
-export interface ChatHistoryMessage {
-  role: "user" | "assistant";
-  content: string;
-}
-
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 // Request timeout — if the API hangs (slow/dead connection), the request
@@ -45,11 +37,15 @@ function finishRequest(controller: AbortController): void {
   }
 }
 
+// NOTE: OpenRouter free-tier model slugs change over time (renamed,
+// deprecated, or resized). If you ever see "<model> is not a valid model
+// ID", check https://openrouter.ai/models?max_price=0 for the current slug
+// and update it here — the fallback chain means one bad slug shouldn't take
+// the whole assistant down, but it's still wasted a retry each time.
 const CHAT_MODELS = [
-  "openai/gpt-oss-20b:free",
-  "nvidia/nemotron-3-ultra:free",
+  "nvidia/nemotron-3-ultra-550b-a55b:free",
   "google/gemma-3-4b-it:free",
-  "nvidia/nemotron-3-super:free",
+  "nvidia/nemotron-3-super-120b-a12b:free",
 ];
 const CODER_MODELS = [
   "openai/gpt-oss-20b:free",
@@ -122,7 +118,9 @@ async function postChatCompletion(
   const controller = startNewRequest();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
-    console.log("Using model:", model);
+    if (import.meta.env.MODE !== "production") {
+      console.log("Using model:", model);
+    }
     const response = await fetch(OPENROUTER_URL, {
       method: "POST",
       signal: controller.signal,

@@ -7,6 +7,7 @@ import{openApplication}from"./services/systemService.js";
 import{writeAndOpenCode}from"./services/codeWriterService.js";
 import{registerSystemIPC}from"./ipc/system.js";
 import{registerVoiceIPC}from"./ipc/voice.js";
+import{registerTtsIPC}from"./ipc/tts.js";
 import{registerSystemControlIPC}from"./ipc/systemControl.js";
 import{registerMarketIPC}from"./ipc/market.js";
 import{registerLauncherIPC}from"./ipc/launcher.js";
@@ -14,7 +15,7 @@ import{registerVisionIPC}from"./ipc/vision.js";
 import{registerFileSearchIPC}from"./ipc/fileSearch.js";
 import{registerDesktopControlIPC}from"./ipc/desktopControl.js";
 import{registerProjectIPC}from"./ipc/project.js";
-import{initVosk}from"./services/voskService.js";
+import{initWhisper}from"./services/whisperService.js";
 import{promptLaunchPreferenceIfNeeded}from"./services/launchPreference.js";
 import{registerLaunchPrefIPC}from"./ipc/launchPref.js";
 
@@ -50,18 +51,19 @@ responseHeaders:{
 });
 
 // Voice IPC handlers are registered immediately so the renderer can talk to
-// them right away, but the actual Vosk model (45MB) loads AFTER the window
+// them right away, but the actual Whisper model loads AFTER the window
 // is created and shown, via setImmediate. This means the window appears
-// instantly instead of waiting 2-4s for the model to load first. Voice
+// instantly instead of waiting for the model to load first. Voice
 // features simply become active a moment later - no behavior is removed.
 registerVoiceIPC();
+registerTtsIPC();
 registerApiKeyIPC();
 registerLaunchPrefIPC();
 mainWindow=createMainWindow();
 promptLaunchPreferenceIfNeeded(mainWindow);
 
 setImmediate(()=>{
-initVosk();
+initWhisper();
 });
 
 registerWindowIPC(()=>mainWindow);

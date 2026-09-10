@@ -6,7 +6,6 @@
   "author": "Shubham Sakhare",
   "type": "module",
   "main": "dist-electron/main.js",
-
   "scripts": {
     "dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron dist-electron/main.js\"",
     "build": "tsc -p tsconfig.app.json && vite build && tsc -p tsconfig.electron.json && tsc -p tsconfig.preload.json",
@@ -16,7 +15,6 @@
     "dist": "npm run build && electron-builder",
     "postinstall": "electron-builder install-app-deps"
   },
-
   "dependencies": {
     "@fontsource/inter": "^5.2.8",
     "@fontsource/orbitron": "^5.2.8",
@@ -27,6 +25,7 @@
     "framer-motion": "^12.42.2",
     "loudness": "^0.4.2",
     "lucide-react": "^1.24.0",
+    "msedge-tts": "^2.0.7",
     "node-machine-id": "^1.1.12",
     "open": "^11.0.0",
     "react": "^19.2.7",
@@ -36,7 +35,6 @@
     "vosk-koffi": "^1.1.1",
     "zustand": "^5.0.14"
   },
-
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/better-sqlite3": "^7.6.13",
@@ -58,8 +56,7 @@
     "vite": "^8.1.1",
     "wait-on": "^9.0.10"
   },
-
-    "build": {
+  "build": {
     "appId": "com.vsmart.ai",
     "productName": "VSmart AI",
     "asar": false,
@@ -87,7 +84,9 @@
       "createStartMenuShortcut": true,
       "shortcutName": "VSmart AI",
       "license": "build/privacy-policy.txt",
-      "installerLanguages": ["en_US"],
+      "installerLanguages": [
+        "en_US"
+      ],
       "runAfterFinish": true
     }
   }

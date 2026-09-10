@@ -1,25 +1,25 @@
-import { ipcMain, BrowserWindow } from "electron";
-import { processAudioChunk, resetRecognizer } from "../services/voskService.js";
+import { ipcMain } from "electron";
+import { processAudioChunk, resetRecognizer, finalizeTranscription } from "../services/whisperService.js";
 
 export function registerVoiceIPC() {
 
-  ipcMain.on("voice:audio-chunk", (event, chunk: ArrayBuffer) => {
-
-    const buffer = Buffer.from(chunk);
-    const result = processAudioChunk(buffer);
-
-    const win = BrowserWindow.fromWebContents(event.sender);
-    if (!win) return;
-
-    if (result.final && result.final.trim()) {
-      win.webContents.send("voice:final-result", result.final.trim());
-    } else if (result.partial && result.partial.trim()) {
-      win.webContents.send("voice:partial-result", result.partial.trim());
-    }
+  // Audio chunks just accumulate now — Whisper is batch-based, so there
+  // are no per-chunk partial/final events like Vosk gave us.
+  ipcMain.on("voice:audio-chunk", (_event, chunk: ArrayBuffer) => {
+    processAudioChunk(Buffer.from(chunk));
   });
 
   ipcMain.on("voice:reset", () => {
     resetRecognizer();
+  });
+
+  // Called once the renderer's own VAD/silence-detection decides the turn
+  // is over. Runs whisper.cpp on everything buffered since the last reset
+  // and returns the transcript directly (no event round-trip needed).
+  // `lang` ("en"/"hi") is an explicit hint for Whisper's language flag —
+  // auto-detect is unreliable on short command-length clips.
+  ipcMain.handle("voice:finalize", async (_event, lang?: string) => {
+    return await finalizeTranscription(lang);
   });
 
 }

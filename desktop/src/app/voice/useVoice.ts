@@ -1,19 +1,30 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-const WAKE_WORD = "vsmart";
-const SAMPLE_RATE = 16000; // Vosk model expects 16kHz mono PCM16
-const SILENCE_TIMEOUT_MS = 6000; // hard fallback: stop the mic if NOTHING is ever heard for this long
-const FINAL_DEBOUNCE_MS = 900; // wait this long after a "final" before treating it as complete
-const WAKE_RESTART_DELAY_MS = 500; // brief pause before auto-restarting in wake-word mode
+const SAMPLE_RATE = 16000;
+const SILENCE_TIMEOUT_MS = 8000;
+const WAKE_RESTART_DELAY_MS = 500;
 
-// Energy-based Voice Activity Detection (VAD): once real speech has been
-// detected in the raw mic signal, a short quiet period below this RMS
-// threshold ends the turn — a much snappier, more natural cutoff than
-// waiting on Vosk's own result timing or the long fallback timeout above.
-// (Simple energy-based VAD, not a neural model like Silero — lightweight
-// and works fully offline with zero extra dependencies.)
-const SPEECH_RMS_THRESHOLD = 0.015;
+// --- Adaptive VAD (Voice Activity Detection) ---
+const CALIBRATION_MS = 400;
+const THRESHOLD_MULTIPLIER = 4.5;
+const MIN_ABSOLUTE_THRESHOLD = 0.015;
+const MAX_THRESHOLD_CAP = 0.13;
 const VAD_SILENCE_MS = 1100;
+
+// A turn shorter than this (mostly silence/a click/a cough) is discarded
+// without even asking Whisper to transcribe it.
+const MIN_SPEECH_MS_TO_DISPATCH = 600;
+
+// Requires a short sustained run above threshold before committing to
+// "speech started" — filters out brief noise blips (a click, a thud,
+// a single loud breath) that would otherwise falsely start a turn and
+// eat into / delay the user's actual speech.
+const SPEECH_CONFIRM_CHUNKS = 2; // ~2 chunks (~500ms) of sustained sound required
+
+// Whisper often mis-hears "VSmart" (not a dictionary word) as similar-
+// sounding variants — matching any of these makes wake-word detection
+// forgiving instead of requiring an exact, unlikely-to-happen match.
+const WAKE_WORD_VARIANTS = /\b(v\.?\s*smart|vsmart|vismart|is\s*mart|es\s*mart|the\s*smart|we\s*smart)\b/i;
 
 /** "Good Morning", "Good Afternoon", "Good Evening", "Good Night" based on current hour. */
 function timeBasedGreeting(): string {
@@ -25,29 +36,20 @@ function timeBasedGreeting(): string {
 }
 
 interface UseVoiceOptions {
-  /** Called with the transcript of an actual command (wake word already stripped). */
   onCommand: (transcript: string) => void;
   lang?: string;
-  /** If true, the mic automatically restarts listening after each command
-   *  (hands-free "Hey VSmart" style). Off by default — costs more CPU/mic
-   *  usage since it's effectively always listening. */
   wakeWordEnabled?: boolean;
 }
 
 export type VoiceControls = ReturnType<typeof useVoice>;
 
-/**
- * Voice hook backed by Vosk (via the main process — no internet needed).
- * By default the mic is OFF and only starts capturing when you call
- * startListening() / toggleListening(). If wakeWordEnabled is true, it
- * automatically restarts after each command for hands-free use.
- */
 export function useVoice({ onCommand, lang = "en-IN", wakeWordEnabled = false }: UseVoiceOptions) {
-  const [listening, setListening] = useState(false); // true while the mic is actively capturing
+  const [listening, setListening] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
   const [interimText, setInterimText] = useState("");
   const [supported, setSupported] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [micLevel, setMicLevel] = useState(0); // 0..1 raw mic energy, for an optional waveform/level UI
+  const [micLevel, setMicLevel] = useState(0);
 
   const onCommandRef = useRef(onCommand);
   onCommandRef.current = onCommand;
@@ -55,33 +57,41 @@ export function useVoice({ onCommand, lang = "en-IN", wakeWordEnabled = false }:
   const wakeWordEnabledRef = useRef(wakeWordEnabled);
   wakeWordEnabledRef.current = wakeWordEnabled;
 
+  const whisperLangRef = useRef("auto");
+  whisperLangRef.current = lang.toLowerCase().startsWith("hi") ? "hi" : "en";
+
   const audioCtxRef = useRef<AudioContext | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const processorRef = useRef<ScriptProcessorNode | null>(null);
   const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const accumulatedRef = useRef("");
 
-  // VAD (voice activity detection) state.
   const hasSpeechRef = useRef(false);
+  const consecutiveAboveThresholdRef = useRef(0);
   const vadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const dispatchAccumulatedRef = useRef<() => void>(() => {});
+  const finalizeAndDispatchRef = useRef<() => void>(() => {});
+
+  const bargeInOnlyRef = useRef(false);
+  const bargedInRef = useRef(false);
+
+  const calibratingRef = useRef(false);
+  const calibrationSamplesRef = useRef<number[]>([]);
+  const speechThresholdRef = useRef(MIN_ABSOLUTE_THRESHOLD);
+  const speechMsAccumulatedRef = useRef(0);
 
   const stopCapture = useCallback(() => {
     if (silenceTimerRef.current) {
       clearTimeout(silenceTimerRef.current);
       silenceTimerRef.current = null;
     }
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-      debounceTimerRef.current = null;
-    }
     if (vadTimerRef.current) {
       clearTimeout(vadTimerRef.current);
       vadTimerRef.current = null;
     }
     hasSpeechRef.current = false;
-    accumulatedRef.current = "";
+    consecutiveAboveThresholdRef.current = 0;
+    calibratingRef.current = false;
+    calibrationSamplesRef.current = [];
+    speechMsAccumulatedRef.current = 0;
     processorRef.current?.disconnect();
     processorRef.current = null;
     audioCtxRef.current?.close();
@@ -95,26 +105,61 @@ export function useVoice({ onCommand, lang = "en-IN", wakeWordEnabled = false }:
 
   const resetSilenceTimer = useCallback(() => {
     if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-    silenceTimerRef.current = setTimeout(stopCapture, SILENCE_TIMEOUT_MS);
-  }, [stopCapture]);
+    silenceTimerRef.current = setTimeout(() => finalizeAndDispatchRef.current(), SILENCE_TIMEOUT_MS);
+  }, []);
 
-  // Forward-declared so dispatchAccumulated can trigger a wake-word restart.
-  const startListeningRef = useRef<() => void>(() => {});
+  const startListeningRef = useRef<(opts?: { bargeInOnly?: boolean }) => void>(() => {});
 
-  const dispatchAccumulated = useCallback(() => {
-    const trimmed = accumulatedRef.current.trim();
-    stopCapture(); // release the mic after dispatching
+  const finalizeAndDispatch = useCallback(async () => {
+    const wasBargeInOnly = bargeInOnlyRef.current;
+    const didBargeIn = bargedInRef.current;
+    const spokeLongEnough = speechMsAccumulatedRef.current >= MIN_SPEECH_MS_TO_DISPATCH;
+    bargeInOnlyRef.current = false;
+    bargedInRef.current = false;
 
-    if (trimmed) {
-      const lower = trimmed.toLowerCase();
-      const afterWake = lower.includes(WAKE_WORD)
-        ? lower.split(WAKE_WORD).pop()?.trim() ?? ""
-        : trimmed;
+    stopCapture();
 
-      if (lower.includes(WAKE_WORD) && !afterWake) {
+    if ((wasBargeInOnly && !didBargeIn) || !spokeLongEnough) {
+      if (wakeWordEnabledRef.current) {
+        setTimeout(() => startListeningRef.current(), WAKE_RESTART_DELAY_MS);
+      }
+      return;
+    }
+
+    setTranscribing(true);
+
+    let transcript = "";
+    try {
+      transcript = (await window.vsmart.voice.finalize(whisperLangRef.current))?.trim() ?? "";
+    } catch {
+      transcript = "";
+    } finally {
+      setTranscribing(false);
+    }
+
+    if (transcript) {
+      const lower = transcript.toLowerCase();
+      const wakeMatch = lower.match(WAKE_WORD_VARIANTS);
+      const hasWakeWord = !!wakeMatch;
+      const afterWake = hasWakeWord
+        ? lower.slice((wakeMatch!.index ?? 0) + wakeMatch![0].length).trim()
+        : transcript;
+
+      console.log(
+        `[Voice] heard: "${transcript}" | hasWakeWord=${hasWakeWord} | ` +
+        `wakeMode=${wakeWordEnabledRef.current} | bargedIn=${didBargeIn} | ` +
+        `threshold=${speechThresholdRef.current.toFixed(4)}`
+      );
+
+      if (hasWakeWord && !afterWake) {
         speak(`${timeBasedGreeting()} Boss, how can I help?`, lang);
-      } else {
-        onCommandRef.current(afterWake || trimmed);
+      } else if (didBargeIn || hasWakeWord || !wakeWordEnabledRef.current) {
+        onCommandRef.current(afterWake || transcript);
+      }
+    } else {
+      console.log("[Voice] Whisper returned nothing usable for this turn.");
+      if (!wakeWordEnabledRef.current) {
+        speak(lang.startsWith("hi") ? "माफ़ कीजिए, ठीक से सुनाई नहीं दिया।" : "Sorry, I didn't catch that clearly.", lang);
       }
     }
 
@@ -123,29 +168,7 @@ export function useVoice({ onCommand, lang = "en-IN", wakeWordEnabled = false }:
     }
   }, [lang, stopCapture]);
 
-  dispatchAccumulatedRef.current = dispatchAccumulated;
-
-  const handleFinal = useCallback((text: string) => {
-    const trimmed = text.trim();
-    if (!trimmed) {
-      resetSilenceTimer();
-      return;
-    }
-
-    // Vosk sometimes splits one sentence into several "final" pieces on a
-    // brief pause. Accumulate them and wait for a real pause before treating
-    // the command as complete, instead of cutting off mid-sentence.
-    accumulatedRef.current = (accumulatedRef.current + " " + trimmed).trim();
-    resetSilenceTimer();
-
-    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-    debounceTimerRef.current = setTimeout(dispatchAccumulated, FINAL_DEBOUNCE_MS);
-  }, [dispatchAccumulated, resetSilenceTimer]);
-
-  const handlePartial = useCallback((text: string) => {
-    setInterimText(text);
-    resetSilenceTimer();
-  }, [resetSilenceTimer]);
+  finalizeAndDispatchRef.current = () => { void finalizeAndDispatch(); };
 
   useEffect(() => {
     if (!window.vsmart?.voice) {
@@ -153,22 +176,20 @@ export function useVoice({ onCommand, lang = "en-IN", wakeWordEnabled = false }:
       setErrorMsg("Voice bridge not available.");
       return;
     }
-
-    window.vsmart.voice.onPartialResult(handlePartial);
-    window.vsmart.voice.onFinalResult(handleFinal);
-
     return () => {
       stopCapture();
     };
-  }, [handleFinal, handlePartial, stopCapture]);
+  }, [stopCapture]);
 
-  const startListening = useCallback(async () => {
+  const startListening = useCallback(async (opts?: { bargeInOnly?: boolean }) => {
     if (listening) return;
 
-    // Never start listening while VSmart is talking — otherwise the mic
-    // picks up its own voice from the speakers and creates a feedback loop.
-    if (window.speechSynthesis?.speaking) {
-      // In wake-word mode, just retry shortly instead of surfacing an error.
+    const isBargeInAttempt = !!opts?.bargeInOnly;
+    bargeInOnlyRef.current = isBargeInAttempt;
+    bargedInRef.current = false;
+    speechMsAccumulatedRef.current = 0;
+
+    if (!isBargeInAttempt && isSpeaking()) {
       if (wakeWordEnabledRef.current) {
         setTimeout(() => startListeningRef.current(), 800);
       } else {
@@ -185,7 +206,8 @@ export function useVoice({ onCommand, lang = "en-IN", wakeWordEnabled = false }:
           channelCount: 1,
           sampleRate: SAMPLE_RATE,
           echoCancellation: true,
-          noiseSuppression: true
+          noiseSuppression: true,
+          autoGainControl: false
         }
       });
 
@@ -198,6 +220,12 @@ export function useVoice({ onCommand, lang = "en-IN", wakeWordEnabled = false }:
       const processor = audioCtx.createScriptProcessor(4096, 1, 1);
       processorRef.current = processor;
 
+      calibratingRef.current = true;
+      calibrationSamplesRef.current = [];
+      speechThresholdRef.current = MIN_ABSOLUTE_THRESHOLD;
+      const calibrationStartedAt = performance.now();
+      const chunkMs = (4096 / SAMPLE_RATE) * 1000;
+
       processor.onaudioprocess = (e) => {
         const float32 = e.inputBuffer.getChannelData(0);
         const int16 = new Int16Array(float32.length);
@@ -209,41 +237,68 @@ export function useVoice({ onCommand, lang = "en-IN", wakeWordEnabled = false }:
           sumSq += s * s;
         }
 
-        // Vosk needs a continuous, unbroken audio stream to recognize
-        // reliably - gating/pausing this stream confuses it, so every
-        // chunk is always sent through.
         window.vsmart.voice.sendAudioChunk(int16.buffer);
 
-        // --- energy-based VAD (auto-stop-on-silence only, no gating) ---
         const rms = Math.sqrt(sumSq / float32.length);
         setMicLevel(Math.min(1, rms * 8));
 
-        if (rms > SPEECH_RMS_THRESHOLD) {
+        if (calibratingRef.current) {
+          calibrationSamplesRef.current.push(rms);
+          if (performance.now() - calibrationStartedAt >= CALIBRATION_MS) {
+            calibratingRef.current = false;
+            const samples = calibrationSamplesRef.current;
+            const avgFloor = samples.length
+              ? samples.reduce((a, b) => a + b, 0) / samples.length
+              : 0;
+            speechThresholdRef.current = Math.min(
+              MAX_THRESHOLD_CAP,
+              Math.max(MIN_ABSOLUTE_THRESHOLD, avgFloor * THRESHOLD_MULTIPLIER)
+            );
+            console.log(
+              `[Voice] calibrated noise floor=${avgFloor.toFixed(4)} -> threshold=${speechThresholdRef.current.toFixed(4)}`
+            );
+          }
+          return;
+        }
+
+        setInterimText(hasSpeechRef.current ? "Listening..." : "");
+
+        if (rms > speechThresholdRef.current) {
+          consecutiveAboveThresholdRef.current += 1;
+
+          // Not enough sustained volume yet to trust this as real speech —
+          // could still be a brief noise blip. Wait for a couple more
+          // chunks before committing (this does NOT reset the VAD silence
+          // timer, so a genuinely ongoing turn is unaffected).
+          if (!hasSpeechRef.current && consecutiveAboveThresholdRef.current < SPEECH_CONFIRM_CHUNKS) {
+            return;
+          }
+
+          const justStartedSpeaking = !hasSpeechRef.current;
           hasSpeechRef.current = true;
+          speechMsAccumulatedRef.current += chunkMs;
+
+          if (justStartedSpeaking && isSpeaking()) {
+            cancelSpeech();
+            bargedInRef.current = true;
+          }
+
           if (vadTimerRef.current) {
             clearTimeout(vadTimerRef.current);
             vadTimerRef.current = null;
           }
-        } else if (hasSpeechRef.current && !vadTimerRef.current) {
-          // Genuine quiet period after real speech was heard - wrap up
-          // the turn now rather than waiting on Vosk's own final-result
-          // timing.
-          vadTimerRef.current = setTimeout(() => {
-            vadTimerRef.current = null;
-            if (debounceTimerRef.current) {
-              clearTimeout(debounceTimerRef.current);
-              debounceTimerRef.current = null;
-            }
-            dispatchAccumulatedRef.current();
-          }, VAD_SILENCE_MS);
+        } else {
+          consecutiveAboveThresholdRef.current = 0;
+
+          if (hasSpeechRef.current && !vadTimerRef.current) {
+            vadTimerRef.current = setTimeout(() => {
+              vadTimerRef.current = null;
+              finalizeAndDispatchRef.current();
+            }, VAD_SILENCE_MS);
+          }
         }
       };
 
-      // ScriptProcessorNode needs to be connected to something to keep firing
-      // onaudioprocess, but connecting it straight to speakers plays the raw
-      // mic input live — causing an acoustic feedback loop (mic hears itself
-      // via the speakers) that corrupts recognition. Route through a silent
-      // (zero-gain) node instead so the graph stays active without any sound.
       const silentGain = audioCtx.createGain();
       silentGain.gain.value = 0;
 
@@ -255,6 +310,7 @@ export function useVoice({ onCommand, lang = "en-IN", wakeWordEnabled = false }:
       setListening(true);
       resetSilenceTimer();
     } catch (err) {
+      bargeInOnlyRef.current = false;
       setErrorMsg(
         err instanceof Error && err.name === "NotAllowedError"
           ? "Microphone access denied. Please allow microphone permission."
@@ -274,7 +330,6 @@ export function useVoice({ onCommand, lang = "en-IN", wakeWordEnabled = false }:
     else startListening();
   }, [listening, startListening, stopListening]);
 
-  // Kick off the first listen automatically when wake-word mode is turned on.
   useEffect(() => {
     if (wakeWordEnabled && !listening) {
       startListeningRef.current();
@@ -282,8 +337,18 @@ export function useVoice({ onCommand, lang = "en-IN", wakeWordEnabled = false }:
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wakeWordEnabled]);
 
+  useEffect(() => {
+    registerSpeechStartListener(() => {
+      if (!wakeWordEnabledRef.current && !listening) {
+        startListeningRef.current({ bargeInOnly: true });
+      }
+    });
+    return () => registerSpeechStartListener(null);
+  }, [listening]);
+
   return {
     listening,
+    transcribing,
     wakeActive: listening,
     interimText,
     supported,
@@ -298,8 +363,8 @@ export function useVoice({ onCommand, lang = "en-IN", wakeWordEnabled = false }:
 // ---------- Speech output (TTS) ----------
 
 let preferredVoiceName: string | null = null;
+let preferredGender: "male" | "female" = "female";
 
-/** Sets a specific voice by name (from Settings) — overrides the automatic Indian-voice picker. */
 export function setPreferredVoice(name: string | null) {
   preferredVoiceName = name;
 }
@@ -308,8 +373,64 @@ export function getPreferredVoice(): string | null {
   return preferredVoiceName;
 }
 
-/** Speaks text out loud using the OS's built-in (offline) speech synthesis, preferring an Indian female voice. */
+export function setPreferredGender(gender: "male" | "female") {
+  preferredGender = gender;
+}
+
+let onSpeechStart: (() => void) | null = null;
+
+function registerSpeechStartListener(cb: (() => void) | null) {
+  onSpeechStart = cb;
+}
+
+let currentAudioEl: HTMLAudioElement | null = null;
+
+/**
+ * Speaks text out loud. Tries Microsoft Edge's natural neural voice first
+ * (genuinely human-sounding Indian English/Hindi voice, needs internet);
+ * if that's unavailable it falls back to the OS's built-in offline voice.
+ */
 export function speak(text: string, lang = "en-IN") {
+  if (!text.trim()) return;
+
+  window.speechSynthesis?.cancel();
+  currentAudioEl?.pause();
+  currentAudioEl = null;
+
+  const shortLang: "en" | "hi" = lang.toLowerCase().startsWith("hi") ? "hi" : "en";
+
+  if (window.vsmart?.tts?.synthesize) {
+    window.vsmart.tts.synthesize(text, shortLang, preferredGender)
+      .then((dataUrl) => {
+        if (!dataUrl) {
+          speakOffline(text, lang);
+          return;
+        }
+        const audio = new Audio(dataUrl);
+        currentAudioEl = audio;
+        audio.onplay = () => onSpeechStart?.();
+        audio.onerror = () => speakOffline(text, lang);
+        audio.play().catch(() => speakOffline(text, lang));
+      })
+      .catch(() => speakOffline(text, lang));
+  } else {
+    speakOffline(text, lang);
+  }
+}
+
+/** Interrupts whatever is currently speaking (natural or offline voice) — used for barge-in. */
+export function cancelSpeech() {
+  window.speechSynthesis?.cancel();
+  currentAudioEl?.pause();
+  currentAudioEl = null;
+}
+
+/** Whether VSmart is currently speaking, via either voice path. */
+export function isSpeaking(): boolean {
+  return !!window.speechSynthesis?.speaking || (!!currentAudioEl && !currentAudioEl.paused);
+}
+
+function speakOffline(text: string, lang: string) {
   if (!("speechSynthesis" in window)) return;
 
   window.speechSynthesis.cancel();
@@ -317,11 +438,14 @@ export function speak(text: string, lang = "en-IN") {
   utterance.lang = lang;
   utterance.rate = 1;
 
+  utterance.onstart = () => {
+    onSpeechStart?.();
+  };
+
   const pickVoice = () => {
     const voices = window.speechSynthesis.getVoices();
     if (!voices.length) return;
 
-    // A voice explicitly chosen in Settings always wins.
     if (preferredVoiceName) {
       const chosen = voices.find(v => v.name === preferredVoiceName);
       if (chosen) {
@@ -331,8 +455,6 @@ export function speak(text: string, lang = "en-IN") {
       }
     }
 
-    // Newer Windows 11 "Natural"/Neural voices sound far clearer than the
-    // legacy SAPI voices (Heera) — prefer them if installed.
     const naturalNames = ["neerja", "swara"];
     const legacyFemaleNames = ["heera", "priya", "kalpana", "veena", "raveena", "indian female"];
 

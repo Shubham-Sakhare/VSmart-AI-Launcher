@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import {
-  Mic,
   X,
-  Monitor,
   Pin,
   PinOff,
   Pencil,
@@ -171,8 +169,29 @@ function AppIcon({ src, name, size = 28 }: { src?: string; name?: string; size?:
   );
 }
 
+function VLogo({ size = 20 }: { size?: number }) {
+  return (
+    <span
+      className="taskbar-vlogo"
+      style={{ width: size, height: size, fontSize: Math.round(size * 0.62) }}
+    >
+      V
+    </span>
+  );
+}
+
 export default function TaskBar({ activePage, onNavigate, voice }: TaskBarProps) {
   const [startOpen, setStartOpen] = useState(false);
+
+  // Sidebar's "Apps" nav item opens this same VSmart Apps grid — the
+  // V-logo trigger was removed from the taskbar since Apps now lives
+  // in the sidebar, so this event is the only way the menu opens.
+  useEffect(() => {
+    const onOpenAppsMenu = () => setStartOpen(true);
+    window.addEventListener("vsmart-open-apps-menu", onOpenAppsMenu);
+    return () => window.removeEventListener("vsmart-open-apps-menu", onOpenAppsMenu);
+  }, []);
+
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [libraryApps, setLibraryApps] = useState<LibraryApp[]>([]);
   const [libraryLoading, setLibraryLoading] = useState(false);
@@ -192,7 +211,6 @@ export default function TaskBar({ activePage, onNavigate, voice }: TaskBarProps)
 
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const [launcherMenuFor, setLauncherMenuFor] = useState<Page | null>(null);
-  const [now, setNow] = useState(new Date());
   const menuRef = useRef<HTMLDivElement | null>(null);
   const launcherMenuRef = useRef<HTMLDivElement | null>(null);
 
@@ -272,11 +290,6 @@ export default function TaskBar({ activePage, onNavigate, voice }: TaskBarProps)
   }, []);
 
   useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(t);
-  }, []);
-
-  useEffect(() => {
     const unsubscribe = window.vsmart.onToggleStart(() => {
       setStartOpen((prev) => !prev);
     });
@@ -319,6 +332,10 @@ export default function TaskBar({ activePage, onNavigate, voice }: TaskBarProps)
   const persistLauncherState = useCallback((next: LauncherAppsState) => {
     setLauncherState(next);
     window.vsmart.saveMemory(LAUNCHER_APPS_KEY, JSON.stringify(next)).catch(() => {});
+    // Pinned VSmart apps now live in the Sidebar (not the taskbar) — let it
+    // know immediately so pin/unpin from this launcher shows up there
+    // without needing a reload.
+    window.dispatchEvent(new CustomEvent("vsmart-launcher-state", { detail: next }));
   }, []);
 
   useEffect(() => {
@@ -471,9 +488,6 @@ export default function TaskBar({ activePage, onNavigate, voice }: TaskBarProps)
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
   }, []);
-
-  const timeStr = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  const dateStr = now.toLocaleDateString([], { day: "2-digit", month: "short" });
 
   const launch = (page: Page) => {
     onNavigate(page);
@@ -696,15 +710,6 @@ export default function TaskBar({ activePage, onNavigate, voice }: TaskBarProps)
     setSystemBtnMenuOpen(false);
   }, []);
 
-  const toggleLauncherPinsVisibility = useCallback(() => {
-    setLauncherPinsHidden((prev) => {
-      const next = !prev;
-      window.vsmart.saveMemory(LAUNCHER_PINS_HIDDEN_KEY, next ? "1" : "0").catch(() => {});
-      return next;
-    });
-    setVlogoBtnMenuOpen(false);
-  }, []);
-
   const toggleSystemPinsVisibility = useCallback(() => {
     setSystemPinsHidden((prev) => {
       const next = !prev;
@@ -717,8 +722,8 @@ export default function TaskBar({ activePage, onNavigate, voice }: TaskBarProps)
   return (
     <>
       {startOpen && (
-        <div className="taskbar-overlay" onClick={() => setStartOpen(false)}>
-          <div className="start-menu" onClick={(e) => e.stopPropagation()}>
+        <div className="taskbar-overlay apps-flyout" onClick={() => setStartOpen(false)}>
+          <div className="start-menu apps-flyout-panel" onClick={(e) => e.stopPropagation()}>
             <div className="start-menu-header">
               <span>VSmart Apps</span>
               <button className="start-close" onClick={() => setStartOpen(false)}>
@@ -976,169 +981,83 @@ export default function TaskBar({ activePage, onNavigate, voice }: TaskBarProps)
         onMouseEnter={showTaskbar}
         onMouseLeave={scheduleHide}
       >
-        <div className="taskbar-left">
-          <div className="pinned-app-wrap">
-            <button
-              className="taskbar-start"
-              onClick={() => setStartOpen((prev) => !prev)}
-              onContextMenu={(e) => {
-                e.preventDefault();
-                setVlogoBtnMenuOpen((prev) => !prev);
-              }}
-              title="VSmart Start"
-            >
-              <div className="start-logo">V</div>
-            </button>
-
-            {vlogoBtnMenuOpen && (
-              <div className="pinned-app-menu align-left" ref={vlogoBtnMenuRef}>
-                <div
-                  className="menu-toggle-row"
-                  onClick={toggleLauncherPinsVisibility}
-                  title={launcherPinsHidden ? "Pins are hidden" : "Pins are visible"}
-                >
-                  <span className="menu-toggle-label">
-                    {launcherPinsHidden ? <EyeOff size={13} /> : <Eye size={13} />}
-                    {launcherPinsHidden ? "Pins hidden" : "Pins visible"}
-                  </span>
-                  <div className={`toggle-switch ${launcherPinsHidden ? "on" : ""}`} />
-                </div>
-              </div>
+        <div className="taskbar-dock">
+          <button
+            className={
+              activePage === HOME_PAGE ? "taskbar-icon active pulse" : "taskbar-icon"
+            }
+            onClick={() => onNavigate(HOME_PAGE)}
+            title={homeEntry.label}
+          >
+            {launcherState.customIcons[HOME_PAGE] ? (
+              <AppIcon src={launcherState.customIcons[HOME_PAGE]} size={18} />
+            ) : (
+              <VLogo size={20} />
             )}
-          </div>
+            {activePage === HOME_PAGE && <span className="running-dot" />}
+          </button>
 
-          <div className="taskbar-pinned">
-            <button
-              className={
-                activePage === HOME_PAGE ? "taskbar-icon active pulse" : "taskbar-icon"
-              }
-              onClick={() => onNavigate(HOME_PAGE)}
-              title={homeEntry.label}
-            >
-              {launcherState.customIcons[HOME_PAGE] ? (
-                <AppIcon src={launcherState.customIcons[HOME_PAGE]} size={18} />
-              ) : (
-                homeEntry.icon
-              )}
-              {activePage === HOME_PAGE && <span className="running-dot" />}
-            </button>
-
-            {!launcherPinsHidden &&
-              pinnedLauncherApps.map((app) => (
-                <div className="pinned-app-wrap" key={app.page}>
-                  <button
-                    draggable
-                    onDragStart={() => setDraggedLauncherPage(app.page)}
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      if (draggedLauncherPage)
-                        reorderLauncherPinned(draggedLauncherPage, app.page);
-                      setDraggedLauncherPage(null);
-                    }}
-                    onDragEnd={() => setDraggedLauncherPage(null)}
-                    className={
-                      (activePage === app.page ? "taskbar-icon active pulse" : "taskbar-icon") +
-                      (draggedLauncherPage === app.page ? " dragging" : "")
-                    }
-                    onClick={() => onNavigate(app.page)}
-                    onContextMenu={(e) => {
-                      e.preventDefault();
-                      setLauncherMenuFor((prev) => (prev === app.page ? null : app.page));
-                    }}
-                    title={app.label}
-                  >
-                    {launcherState.customIcons[app.page] ? (
-                      <AppIcon src={launcherState.customIcons[app.page]} size={18} />
-                    ) : (
-                      app.icon
-                    )}
-                    {activePage === app.page && <span className="running-dot" />}
-                  </button>
-
-                  {launcherMenuFor === app.page && (
-                    <div className="pinned-app-menu" ref={launcherMenuRef}>
-                      <button onClick={() => toggleLauncherPin(app.page)}>
-                        <PinOff size={13} /> Unpin from taskbar
-                      </button>
-                      <button onClick={() => editLauncherIcon(app.page)}>
-                        <Pencil size={13} /> Edit icon
-                      </button>
-                      <button className="danger" onClick={() => removeLauncherApp(app.page)}>
-                        <Trash2 size={13} /> Remove
-                      </button>
-                    </div>
+          {/* Internal app-page launcher icons removed from the taskbar —
+              taskbar now shows system apps only. Page navigation lives
+              in the Sidebar instead. */}
+          {false &&
+            !launcherPinsHidden &&
+            pinnedLauncherApps.map((app) => (
+              <div className="pinned-app-wrap" key={app.page}>
+                <button
+                  draggable
+                  onDragStart={() => setDraggedLauncherPage(app.page)}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (draggedLauncherPage)
+                      reorderLauncherPinned(draggedLauncherPage, app.page);
+                    setDraggedLauncherPage(null);
+                  }}
+                  onDragEnd={() => setDraggedLauncherPage(null)}
+                  className={
+                    (activePage === app.page ? "taskbar-icon active pulse" : "taskbar-icon") +
+                    (draggedLauncherPage === app.page ? " dragging" : "")
+                  }
+                  onClick={() => onNavigate(app.page)}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    setLauncherMenuFor((prev) => (prev === app.page ? null : app.page));
+                  }}
+                  title={app.label}
+                >
+                  {launcherState.customIcons[app.page] ? (
+                    <AppIcon src={launcherState.customIcons[app.page]} size={18} />
+                  ) : (
+                    app.icon
                   )}
-                </div>
-              ))}
+                  {activePage === app.page && <span className="running-dot" />}
+                </button>
 
-            <button
-              className={
-                voice.listening ? "taskbar-icon mic active listening" : "taskbar-icon mic"
-              }
-              onClick={voice.toggleListening}
-              title="Talk to VSmart"
-            >
-              <Mic size={18} />
-            </button>
-          </div>
-        </div>
+                {launcherMenuFor === app.page && (
+                  <div className="pinned-app-menu" ref={launcherMenuRef}>
+                    <button onClick={() => toggleLauncherPin(app.page)}>
+                      <PinOff size={13} /> Unpin from taskbar
+                    </button>
+                    <button onClick={() => editLauncherIcon(app.page)}>
+                      <Pencil size={13} /> Edit icon
+                    </button>
+                    <button className="danger" onClick={() => removeLauncherApp(app.page)}>
+                      <Trash2 size={13} /> Remove
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
 
-        <div className="taskbar-right">
-          {!systemPinsHidden && pinnedTaskbarApps.length > 0 && (
-            <div className="taskbar-pinned">
-              {pinnedTaskbarApps.map((app) => (
-                <div className="pinned-app-wrap" key={app.id}>
-                  <button
-                    draggable
-                    onDragStart={() => setDraggedSystemAppId(app.id)}
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      if (draggedSystemAppId)
-                        reorderSystemPinned(draggedSystemAppId, app.id);
-                      setDraggedSystemAppId(null);
-                    }}
-                    onDragEnd={() => setDraggedSystemAppId(null)}
-                    className={
-                      "taskbar-icon pinned-app" +
-                      (draggedSystemAppId === app.id ? " dragging" : "")
-                    }
-                    title={app.name}
-                    onClick={() => launchLibraryApp(app)}
-                    onContextMenu={(e) => {
-                      e.preventDefault();
-                      setMenuFor((prev) => (prev === app.id ? null : app.id));
-                    }}
-                  >
-                    <AppIcon src={app.customIcon || app.icon} name={app.name} size={22} />
-                    <span className="running-dot" />
-                  </button>
-
-                  {menuFor === app.id && (
-                    <div className="pinned-app-menu" ref={menuRef}>
-                      <button onClick={() => togglePin(app)}>
-                        <PinOff size={13} /> Unpin from taskbar
-                      </button>
-                      <button onClick={() => handleEditIcon(app.id)}>
-                        <Pencil size={13} /> Edit icon
-                      </button>
-                      <button onClick={() => handleOpenFileLocation(app.id)}>
-                        <FolderOpen size={13} /> Open file location
-                      </button>
-                      <button className="danger" onClick={() => handleRemoveLibraryApp(app.id)}>
-                        <Trash2 size={13} /> Remove
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
+          {/* "Apps" button — replaces the old separate System-apps (Monitor)
+              button. All of that button's functionality (open the System
+              Apps library, right-click to edit its icon / toggle pin
+              visibility) now lives here, right after the V logo, so the
+              whole dock reads as one centered row like the reference UI. */}
           <div className="pinned-app-wrap">
             <button
-              className="taskbar-start windows-button"
+              className="taskbar-icon apps-btn"
               onClick={() => setLibraryOpen((prev) => !prev)}
               onContextMenu={(e) => {
                 e.preventDefault();
@@ -1147,14 +1066,14 @@ export default function TaskBar({ activePage, onNavigate, voice }: TaskBarProps)
               title="System Apps"
             >
               {systemBtnIcon ? (
-                <AppIcon src={systemBtnIcon} size={25} />
+                <AppIcon src={systemBtnIcon} size={20} />
               ) : (
-                <Monitor size={25} />
+                homeEntry.icon
               )}
             </button>
 
             {systemBtnMenuOpen && (
-              <div className="pinned-app-menu align-right" ref={systemBtnMenuRef}>
+              <div className="pinned-app-menu" ref={systemBtnMenuRef}>
                 <button onClick={editSystemBtnIcon}>
                   <Pencil size={13} /> Edit icon
                 </button>
@@ -1173,12 +1092,53 @@ export default function TaskBar({ activePage, onNavigate, voice }: TaskBarProps)
             )}
           </div>
 
-          <div className="taskbar-tray">
-            <div className="tray-clock">
-              <span>{timeStr}</span>
-              <span className="tray-date">{dateStr}</span>
-            </div>
-          </div>
+          {!systemPinsHidden &&
+            pinnedTaskbarApps.map((app) => (
+              <div className="pinned-app-wrap" key={app.id}>
+                <button
+                  draggable
+                  onDragStart={() => setDraggedSystemAppId(app.id)}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (draggedSystemAppId)
+                      reorderSystemPinned(draggedSystemAppId, app.id);
+                    setDraggedSystemAppId(null);
+                  }}
+                  onDragEnd={() => setDraggedSystemAppId(null)}
+                  className={
+                    "taskbar-icon pinned-app" +
+                    (draggedSystemAppId === app.id ? " dragging" : "")
+                  }
+                  title={app.name}
+                  onClick={() => launchLibraryApp(app)}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    setMenuFor((prev) => (prev === app.id ? null : app.id));
+                  }}
+                >
+                  <AppIcon src={app.customIcon || app.icon} name={app.name} size={22} />
+                  <span className="running-dot" />
+                </button>
+
+                {menuFor === app.id && (
+                  <div className="pinned-app-menu" ref={menuRef}>
+                    <button onClick={() => togglePin(app)}>
+                      <PinOff size={13} /> Unpin from taskbar
+                    </button>
+                    <button onClick={() => handleEditIcon(app.id)}>
+                      <Pencil size={13} /> Edit icon
+                    </button>
+                    <button onClick={() => handleOpenFileLocation(app.id)}>
+                      <FolderOpen size={13} /> Open file location
+                    </button>
+                    <button className="danger" onClick={() => handleRemoveLibraryApp(app.id)}>
+                      <Trash2 size={13} /> Remove
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
         </div>
       </footer>
     </>

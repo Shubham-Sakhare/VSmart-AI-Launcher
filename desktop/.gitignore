@@ -113,3 +113,14 @@ coverage/
 # ==========================================
 tree.txt
 
+node_modules/
+dist/
+dist-electron/
+build/
+whisper-model/
+electron/bin/*.dll
+electron/bin/*.exe
+.env
+*.db
+*.db-shm
+*.db-wal

@@ -206,8 +206,16 @@ openDesktopItem:(itemPath:string)=>Promise<boolean>;
 voice:{
 sendAudioChunk:(chunk:ArrayBuffer)=>void;
 reset:()=>void;
+finalize:(lang?:string)=>Promise<string>;
 onPartialResult:(callback:(text:string)=>void)=>void;
 onFinalResult:(callback:(text:string)=>void)=>void;
+};
+
+/** Natural neural text-to-speech (Microsoft Edge voices). Returns a base64
+    audio data URL, or null if synthesis failed (e.g. offline) — callers
+    should fall back to the browser's offline speechSynthesis in that case. */
+tts:{
+synthesize:(text:string,lang:"en"|"hi",gender:"male"|"female")=>Promise<string|null>;
 };
 
 apiKey:{

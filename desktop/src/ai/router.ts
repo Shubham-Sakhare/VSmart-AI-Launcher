@@ -21,6 +21,8 @@ export interface RouteResult {
 const CONFIRM_WORDS = ["yes", "haan", "ha", "confirm", "karo", "ok", "sure"];
 const CANCEL_WORDS = ["no", "nahi", "cancel", "mat karo"];
 
+
+
 type ActionKey =
   | "search" | "open" | "write" | "close" | "play" | "pause" | "stop"
   | "volume" | "brightness" | "wifi" | "bluetooth" | "screenshot"
@@ -146,7 +148,16 @@ function isBlocked(text: string): boolean {
 }
 
 // Tracks a pending destructive action awaiting a yes/no confirmation.
+// Expires after PENDING_TIMEOUT_MS so a stray later message (e.g. the user
+// changed topic instead of answering) never gets misread as a confirmation.
+const PENDING_TIMEOUT_MS = 90_000;
+
 let pendingConfirm: "restart" | "shutdown" | null = null;
+let pendingConfirmAt = 0;
+
+function isPendingExpired(setAt: number): boolean {
+  return Date.now() - setAt > PENDING_TIMEOUT_MS;
+}
 
 // Tracks a pending multi-turn follow-up after certain "open X" commands —
 // e.g. "open chrome" -> "which profile?" -> next message picks one;
@@ -160,6 +171,7 @@ type PendingFollowUp =
   | null;
 
 let pendingFollowUp: PendingFollowUp = null;
+let pendingFollowUpAt = 0;
 
 const VSCODE_TRIGGER_WORDS = [
   "code", "vscode", "vs code", "visual studio code", "v s code",
@@ -183,6 +195,10 @@ export async function route(
   const msgs = CONFIRM_MSGS[lang];
 
   // ---- Handle a pending restart/shutdown confirmation first ----
+  if (pendingConfirm && isPendingExpired(pendingConfirmAt)) {
+    pendingConfirm = null; // stale — fall through to normal handling below
+  }
+
   if (pendingConfirm) {
     const lower = message.toLowerCase();
     const action = pendingConfirm;
@@ -201,6 +217,10 @@ export async function route(
   }
 
   // ---- Handle a pending multi-turn follow-up next ----
+  if (pendingFollowUp && isPendingExpired(pendingFollowUpAt)) {
+    pendingFollowUp = null; // stale — fall through to normal handling below
+  }
+
   if (pendingFollowUp) {
     const followUp = pendingFollowUp;
     pendingFollowUp = null;
@@ -250,7 +270,7 @@ export async function route(
     }
   }
 
-  const plan: Plan = await planner(message);
+  const plan: Plan = await planner(message, history);
   const { intent, command } = plan;
 
   switch (intent) {
@@ -291,11 +311,13 @@ export async function route(
 
       if (lower.includes("restart") || lower.includes("reboot")) {
         pendingConfirm = "restart";
+        pendingConfirmAt = Date.now();
         return { success: true, action: "system.confirm", message: msgs.restart };
       }
 
       if (lower.includes("shutdown") || lower.includes("shut down")) {
         pendingConfirm = "shutdown";
+        pendingConfirmAt = Date.now();
         return { success: true, action: "system.confirm", message: msgs.shutdown };
       }
 
@@ -307,6 +329,7 @@ export async function route(
 
         if (profiles.length > 1) {
           pendingFollowUp = { type: "chrome_profile", profiles };
+          pendingFollowUpAt = Date.now();
           const names = profiles.map(p => p.name).join(", ");
           return {
             success: true,
@@ -328,6 +351,7 @@ export async function route(
 
         const result = await systemAgent("youtube");
         pendingFollowUp = { type: "youtube_search" };
+        pendingFollowUpAt = Date.now();
 
         return {
           success: true,
@@ -348,6 +372,7 @@ export async function route(
 
         const result = await systemAgent(command);
         pendingFollowUp = { type: "vscode_task" };
+        pendingFollowUpAt = Date.now();
 
         return {
           success: true,

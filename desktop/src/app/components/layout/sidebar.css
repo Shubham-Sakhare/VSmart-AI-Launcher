@@ -75,8 +75,18 @@ flex-direction:column;
 
 gap:10px;
 
-overflow-y:auto;
+flex:1 1 0;
+min-height:0;
 
+overflow-y:auto;
+padding-right:2px;
+
+}
+
+.menu::-webkit-scrollbar{ width:5px; }
+.menu::-webkit-scrollbar-thumb{
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+  border-radius:10px;
 }
 
 .menu-label{
@@ -352,3 +362,398 @@ border-bottom:1px solid rgba(255,255,255,.05);
 border:none;
 
 }
+/* ========== Sidebar v2 additions (glassy, image-matched) ========== */
+.sidebar{
+  /* Scoped brand palette — matches the reference UI's blue→violet gradient
+     regardless of whatever global theme is active elsewhere in the app. */
+  --accent: #6ea8ff;
+  --accent-2: #b06cff;
+  --accent-3: #ff8fd6;
+  --accent-rgb: 110, 168, 255;
+  --accent-2-rgb: 176, 108, 255;
+
+  width: 264px;
+  padding: 18px 16px;
+  gap: 0;
+  background:
+    radial-gradient(140% 60% at 0% 0%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 55%),
+    radial-gradient(120% 90% at 100% 100%, color-mix(in srgb, var(--accent-2) 12%, transparent), transparent 55%),
+    linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,0) 30%),
+    color-mix(in srgb, var(--bg-panel) 55%, transparent);
+  backdrop-filter: blur(26px) saturate(180%);
+  -webkit-backdrop-filter: blur(26px) saturate(180%);
+  border-right: 1px solid rgba(255,255,255,.12);
+  /* Sidebar itself never scrolls as a whole — only the places list (below)
+     scrolls internally. The column instead shrinks its own sections
+     (logo/menu/brand card/health row) so everything fits the viewport
+     without any part getting clipped at the bottom edge. */
+  overflow: hidden;
+}
+
+.sidebar::-webkit-scrollbar{ width:6px; }
+.sidebar::-webkit-scrollbar-thumb{ background: color-mix(in srgb, var(--accent) 40%, transparent); border-radius: 10px; }
+
+.sidebar .logo{
+  flex-shrink: 0;
+  margin-bottom: 20px;
+}
+
+.sidebar .logo-circle{
+  width: 46px;
+  height: 46px;
+  font-size: 19px;
+}
+
+.sidebar .logo h2{
+  font-size: 18px;
+  letter-spacing: 3px;
+}
+
+.sidebar .menu{
+  flex: 1 1 0;
+  min-height: 0;
+  gap: 6px;
+  overflow-y: auto;
+}
+
+.menu-item{
+  border-radius: 14px !important;
+  padding: 12px 16px;
+  font-size: 14px;
+  gap: 12px;
+  position: relative;
+}
+
+.menu-item:hover{
+  transform: none;
+}
+
+.menu-item-active-dot{
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-left: auto;
+  flex-shrink: 0;
+  background: #fff;
+  box-shadow: 0 0 8px rgba(255,255,255,.9);
+}
+
+.menu-icon{
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: inherit;
+}
+
+.menu-item.active .menu-icon{
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: #fff;
+  box-shadow: 0 0 14px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+/* Pinned apps injected inline into the main nav list (same section as
+   Home / Apps / Files...), each with a hover-reveal unpin button. */
+.menu-item-wrap{
+  position: relative;
+}
+
+.menu-item-wrap .menu-item{
+  width: 100%;
+}
+
+.menu-item-wrap .menu-icon img{
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  border-radius: 5px;
+}
+
+.menu-item-unpin{
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  border: 1px solid rgba(255,255,255,.1);
+  background: rgba(0,0,0,.35);
+  color: var(--text-dim);
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity .15s, background .15s, color .15s;
+}
+
+.menu-item-wrap:hover .menu-item-unpin{
+  opacity: 1;
+}
+
+.menu-item-unpin:hover{
+  background: rgba(255, 80, 80, .18);
+  color: #ff8080;
+  border-color: rgba(255, 80, 80, .3);
+}
+
+
+.sb-places{
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  margin-top: 6px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255,255,255,.06);
+}
+
+.sb-places-title{
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  color: rgba(255,255,255,.4);
+  margin-bottom: 10px;
+  text-transform: uppercase;
+}
+
+.sb-places-title-line{
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(255,255,255,.16), rgba(255,255,255,0));
+}
+
+.sb-places-add{
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,.14);
+  background: rgba(255,255,255,.04);
+  color: rgba(255,255,255,.55);
+  cursor: pointer;
+  transition: color .2s, border-color .2s, background .2s;
+}
+
+.sb-places-add:hover{
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.sb-places-list{
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.sb-places-list::-webkit-scrollbar{ width: 5px; }
+.sb-places-list::-webkit-scrollbar-thumb{
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+  border-radius: 10px;
+}
+
+.hub-place-wrap{
+  position: relative;
+  width: 100%;
+}
+
+/* The native <input type=file> that HubTile renders for icon-editing must
+   stay completely invisible — it's triggered only via the pencil button.
+   Without this rule the browser's own "Choose File / No file chosen"
+   control renders inline and breaks the Places list layout. */
+.hub-place-wrap .hub-file-input{
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.sb-places-list .place-row{
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 30px 12px 16px;
+  border-radius: 14px;
+  font-size: 14px;
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  text-align: left;
+  transition: .35s;
+}
+.sb-places-list .place-row:hover{
+  background: var(--bg-panel);
+  box-shadow: 0 0 20px rgba(var(--accent-rgb), .2);
+}
+
+.sb-places-list .place-icon{
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  border-radius: 9px;
+  background: transparent;
+  color: inherit;
+}
+
+.sb-places-list .place-icon img,
+.sb-places-list .place-icon svg{
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+}
+
+.sb-places-list .place-name{
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sb-places-list .place-edit-abs,
+.sb-places-list .place-reset-abs{
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  color: rgba(255,255,255,.55);
+  background: color-mix(in srgb, var(--bg-panel) 85%, transparent);
+  border: 1px solid rgba(255,255,255,.1);
+  opacity: 0;
+  transition: opacity .2s, color .2s, border-color .2s;
+}
+
+.sb-places-list .place-edit-abs{ right: 8px; }
+.sb-places-list .place-reset-abs{ right: 28px; }
+
+.sb-places-list .place-row:hover .place-edit-abs,
+.sb-places-list .place-row:hover .place-reset-abs{
+  opacity: 1;
+}
+
+.sb-places-list .place-edit-abs:hover,
+.sb-places-list .place-reset-abs:hover{
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.sb-brand-card{
+  flex-shrink: 0;
+  margin-top: 12px;
+  padding: 14px;
+  border-radius: 16px;
+  text-align: center;
+  background:
+    radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 60%),
+    color-mix(in srgb, var(--bg-panel) 80%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+  backdrop-filter: blur(16px);
+}
+
+.sb-brand-logo{
+  width: 40px;
+  height: 40px;
+  margin: 0 auto 8px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  color: #fff;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2), var(--accent-3));
+  box-shadow: 0 0 16px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.sb-brand-card h4{
+  margin: 0 0 4px;
+  font-size: 14px;
+  color: #fff;
+}
+
+.sb-brand-card p{
+  margin: 0;
+  font-size: 10.5px;
+  color: rgba(255,255,255,.5);
+  line-height: 1.4;
+}
+
+.sb-brand-btn{
+  margin-top: 10px;
+  width: 100%;
+  padding: 7px 0;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  cursor: pointer;
+  transition: background .2s, box-shadow .2s;
+}
+
+.sb-brand-btn:hover{
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.sb-health-row{
+  flex-shrink: 0;
+  margin-top: 10px;
+  margin-bottom: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sb-health-card{
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--bg-panel) 70%, transparent);
+  border: 1px solid rgba(255,255,255,.06);
+}
+
+.sb-health-card strong{
+  display: block;
+  font-size: 11.5px;
+  color: #fff;
+}
+.sb-health-card small{
+  font-size: 10.5px;
+  color: rgba(255,255,255,.45);
+}
+
+.sb-health-icon{ color: rgba(255,255,255,.5); flex-shrink: 0; }
+.sb-health-icon.ok{ color: #34d399; }

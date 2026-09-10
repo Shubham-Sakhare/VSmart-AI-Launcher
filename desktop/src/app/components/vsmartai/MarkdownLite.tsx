@@ -1,10 +1,70 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import { Copy, Check } from "lucide-react";
 
 // Small, dependency-free markdown renderer — keeps bundle size and load
 // time down (no remark/react-markdown). Supports the formatting AI
 // replies actually use: **bold**, `inline code`, ```fenced code```,
 // and - / * / 1. lists. Renders to React elements directly (no
 // dangerouslySetInnerHTML), so there's no XSS surface either.
+
+// Same clipboard fallback as the chat page (Electron renderers sometimes
+// run without a secure context, so navigator.clipboard can be missing or
+// reject silently) — duplicated locally to keep this file dependency-free
+// of the page component.
+async function copyText(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+    throw new Error("clipboard api unavailable");
+  } catch {
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+      return ok;
+    } catch {
+      return false;
+    }
+  }
+}
+
+function CodeBlock({ lang, code }: { lang: string; code: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    const ok = await copyText(code);
+    if (ok) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    }
+  };
+
+  return (
+    <pre className="vsai-code-block">
+      <div className="vsai-code-block-header">
+        <span className="vsai-code-lang">{lang || "code"}</span>
+        <button
+          type="button"
+          className="vsai-code-copy-btn"
+          title="Copy code"
+          onClick={handleCopy}
+        >
+          {copied ? <Check size={12} /> : <Copy size={12} />}
+          {copied ? "Copied" : "Copy"}
+        </button>
+      </div>
+      <code>{code.replace(/\n$/, "")}</code>
+    </pre>
+  );
+}
 
 function renderInline(text: string, keyPrefix: string): ReactNode[] {
   const nodes: ReactNode[] = [];
@@ -49,10 +109,7 @@ export function renderLiteMarkdown(text: string): ReactNode[] {
         code = lines.slice(1).join("\n");
       }
       blocks.push(
-        <pre key={`code-${partIdx}`} className="vsai-code-block">
-          {lang && <span className="vsai-code-lang">{lang}</span>}
-          <code>{code.replace(/\n$/, "")}</code>
-        </pre>
+        <CodeBlock key={`code-${partIdx}`} lang={lang} code={code} />
       );
       return;
     }
