@@ -2,10 +2,11 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   Sparkles, Send, Paperclip, ImageIcon, Lightbulb, ListChecks,
   Plus, Trash2, MessageSquare, X, Copy, Check, Pencil, Maximize2,
-  Square, RotateCcw, ChevronDown, ChevronUp
+  Square, RotateCcw, ChevronDown, ChevronUp, Mic
 } from "lucide-react";
-import { askVSmart } from "../../../core/aiEngine";
+import { askSmartChat } from "../../../core/aiEngine";
 import type { ReplyLang, ChatHistoryMessage } from "../../../llm/openrouter";
+import type { VoiceControls } from "../../voice/useVoice";
 import { renderLiteMarkdown } from "./MarkdownLite";
 import "./VSmartAIPage.css";
 
@@ -68,7 +69,7 @@ async function copyText(text: string): Promise<boolean> {
   }
 }
 
-export default function VSmartAIPage({ replyLang = "en" }: { replyLang?: ReplyLang }) {
+export default function VSmartAIPage({ replyLang = "en", voice }: { replyLang?: ReplyLang; voice?: VoiceControls }) {
 
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -226,6 +227,7 @@ export default function VSmartAIPage({ replyLang = "en" }: { replyLang?: ReplyLa
       : trimmed;
 
     const userMsg: ChatMessage = { id: `${Date.now()}-u`, sender: "You", text: displayText, ts: Date.now() };
+    const aiId = `${Date.now()}-a`;
 
     let sessionId = activeId;
 
@@ -243,9 +245,6 @@ export default function VSmartAIPage({ replyLang = "en" }: { replyLang?: ReplyLa
       ));
     }
 
-    // Build history from the session as it was *before* this new message
-    // (the setSessions calls above are async, so `messages`/`activeSession`
-    // still reflect the prior state here).
     const priorMessages = activeSession?.messages ?? [];
     const history: ChatHistoryMessage[] = priorMessages
       .slice(-10)
@@ -260,29 +259,40 @@ export default function VSmartAIPage({ replyLang = "en" }: { replyLang?: ReplyLa
 
     const myToken = ++genTokenRef.current;
 
+    // Add an empty streaming bubble immediately so the user sees it appear
+    setSessions(prev => prev.map(s =>
+      s.id === sessionId
+        ? { ...s, messages: [...s.messages, { id: aiId, sender: "VSmart" as const, text: "", ts: Date.now() }], updatedAt: Date.now() }
+        : s
+    ));
+
     try {
-      const result = await askVSmart(promptForAI, replyLang, history);
-      const reply = result.message ?? "Done.";
-      if (genTokenRef.current !== myToken) return; // stopped — drop this reply
-      const aiMsg: ChatMessage = { id: `${Date.now()}-a`, sender: "VSmart", text: reply, ts: Date.now() };
-      setSessions(prev => prev.map(s =>
-        s.id === sessionId ? { ...s, messages: [...s.messages, aiMsg], updatedAt: Date.now() } : s
-      ));
+      // Stream tokens — update the bubble live as each chunk arrives
+      await askSmartChat(promptForAI, replyLang, history, (_delta, accumulated) => {
+        if (genTokenRef.current !== myToken) return; // stopped
+        setSessions(prev => prev.map(s => {
+          if (s.id !== sessionId) return s;
+          return {
+            ...s,
+            messages: s.messages.map(m => m.id === aiId ? { ...m, text: accumulated } : m),
+            updatedAt: Date.now(),
+          };
+        }));
+      });
     } catch (err) {
-      if (genTokenRef.current !== myToken) return; // stopped — drop this error
-      // Show the real reason instead of a generic message — rate limits,
-      // timeouts, and missing API keys all need different fixes from the
-      // user, so swallowing the error made every failure look the same.
+      if (genTokenRef.current !== myToken) return;
       const reason = err instanceof Error ? err.message : "Unknown error.";
-      const aiMsg: ChatMessage = {
-        id: `${Date.now()}-a`,
-        sender: "VSmart",
-        text: `Something went wrong reaching the AI: ${reason}`,
-        ts: Date.now()
-      };
-      setSessions(prev => prev.map(s =>
-        s.id === sessionId ? { ...s, messages: [...s.messages, aiMsg], updatedAt: Date.now() } : s
-      ));
+      setSessions(prev => prev.map(s => {
+        if (s.id !== sessionId) return s;
+        return {
+          ...s,
+          messages: s.messages.map(m => m.id === aiId
+            ? { ...m, text: `Something went wrong: ${reason}` }
+            : m
+          ),
+          updatedAt: Date.now(),
+        };
+      }));
     } finally {
       if (genTokenRef.current === myToken) setLoading(false);
     }
@@ -483,7 +493,7 @@ export default function VSmartAIPage({ replyLang = "en" }: { replyLang?: ReplyLa
               );
             })}
 
-            {loading && (
+            {loading && messages[messages.length - 1]?.sender !== "VSmart" && (
               <div className="vsai-msg-row ai">
                 <div className="vsai-avatar"><Sparkles size={14} /></div>
                 <div className="vsai-bubble vsai-typing">
@@ -524,6 +534,20 @@ export default function VSmartAIPage({ replyLang = "en" }: { replyLang?: ReplyLa
               }}
               rows={1}
             />
+
+            {voice && (
+              <button
+                type="button"
+                className={`vsai-mic-btn${voice.listening ? " active" : ""}${voice.transcribing ? " transcribing" : ""}`}
+                onClick={voice.toggleListening}
+                title={voice.listening ? "Listening — click to stop" : "Speak a command"}
+                disabled={voice.transcribing}
+                aria-label={voice.listening ? "Stop voice input" : "Start voice input"}
+              >
+                {/* Always show Mic — animation conveys active state */}
+                <Mic size={15} />
+              </button>
+            )}
 
             {loading ? (
               <button

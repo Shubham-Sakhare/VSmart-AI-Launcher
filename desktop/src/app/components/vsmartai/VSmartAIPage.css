@@ -633,6 +633,46 @@
     transform:scale(1.05);
 }
 
+/* Mic button — sits to the left of the send/stop button in the input box */
+.vsai-mic-btn{
+    width:32px;
+    height:32px;
+    min-width:32px;
+    border-radius:50%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:transparent;
+    border:1px solid rgba(var(--accent-rgb), .3);
+    color:var(--text-secondary);
+    cursor:pointer;
+    transition:.2s;
+    margin-right:4px;
+    flex-shrink:0;
+}
+.vsai-mic-btn:hover{
+    background:rgba(var(--accent-rgb), .12);
+    color:var(--text-primary);
+    border-color:rgba(var(--accent-rgb), .6);
+}
+/* Listening state */
+.vsai-mic-btn.active{
+    background:rgba(var(--accent-rgb), .18);
+    border-color:var(--accent);
+    color:var(--accent);
+    box-shadow:0 0 10px rgba(var(--accent-rgb), .35);
+    animation:vsai-mic-pulse 1.4s ease-in-out infinite;
+}
+/* Transcribing state */
+.vsai-mic-btn.transcribing{
+    opacity:.6;
+    cursor:wait;
+}
+@keyframes vsai-mic-pulse{
+    0%,100%{ box-shadow:0 0 6px rgba(var(--accent-rgb), .3); }
+    50%    { box-shadow:0 0 18px rgba(var(--accent-rgb), .65); }
+}
+
 /* Inline collapse for long AI replies — full markdown still renders, we
    just clamp the height and fade the bottom edge instead of cutting the
    raw text mid-word/mid-markdown. */

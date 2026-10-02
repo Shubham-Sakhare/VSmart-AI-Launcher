@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { Pencil, X } from "lucide-react";
 import type { DesktopItem } from "./desktopTypes";
 import { typeClass } from "./desktopStyleUtils";
@@ -26,6 +26,7 @@ export function HubTile({
   onIconClear: () => void;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
+  const [iconBroken, setIconBroken] = useState(false);
   const iconSize =
     layout === "place" ? placesIconSize : Math.round(desktopIconSize * 0.55);
 
@@ -36,14 +37,23 @@ export function HubTile({
     if (!file || !file.type.startsWith("image/")) return;
     const reader = new FileReader();
     reader.onload = () => {
-      if (typeof reader.result === "string") onIconChange(reader.result);
+      if (typeof reader.result === "string") {
+        setIconBroken(false);
+        onIconChange(reader.result);
+      }
     };
     reader.readAsDataURL(file);
     e.target.value = "";
   };
 
-  const iconNode = customIcon ? (
-    <img src={customIcon} alt="" className="tile-custom-img" draggable={false} />
+  const iconNode = customIcon && !iconBroken ? (
+    <img
+      src={customIcon}
+      alt=""
+      className="tile-custom-img"
+      draggable={false}
+      onError={() => setIconBroken(true)}
+    />
   ) : (
     <DefaultIcon item={item} size={iconSize} />
   );

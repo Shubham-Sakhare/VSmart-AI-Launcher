@@ -37,7 +37,9 @@ export async function planner(
     }
   }
 
-  let command = text.trim();
+  // Every switch branch below assigns `command`, including `default` —
+  // no initial value needed here.
+  let command: string;
 
   switch (intent) {
     case "system":

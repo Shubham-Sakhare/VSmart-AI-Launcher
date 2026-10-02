@@ -98,7 +98,7 @@ $p = [System.Windows.Forms.Cursor]::Position
 
 // SendKeys reserved characters need braces around them.
 function escapeSendKeysText(text: string): string {
-  return text.replace(/([+^%~(){}\[\]])/g, "{$1}");
+  return text.replace(/([+^%~(){}[\]])/g, "{$1}");
 }
 
 const NAMED_KEYS: Record<string, string> = {

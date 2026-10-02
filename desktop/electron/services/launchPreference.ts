@@ -35,7 +35,6 @@ export function setAutostart(enabled: boolean): void {
     openAtLogin: enabled,
     path: app.getPath("exe"),
   });
-  const pref = readPref();
   writePref({ asked: true, autostart: enabled });
 }
 

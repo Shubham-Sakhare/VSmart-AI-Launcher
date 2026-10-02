@@ -999,7 +999,9 @@ export default function TaskBar({ activePage, onNavigate, voice }: TaskBarProps)
 
           {/* Internal app-page launcher icons removed from the taskbar —
               taskbar now shows system apps only. Page navigation lives
-              in the Sidebar instead. */}
+              in the Sidebar instead. Kept here (behind `false &&`) rather
+              than deleted, in case this is brought back later. */}
+          {/* eslint-disable-next-line no-constant-binary-expression */}
           {false &&
             !launcherPinsHidden &&
             pinnedLauncherApps.map((app) => (

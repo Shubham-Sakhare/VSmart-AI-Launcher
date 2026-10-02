@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { MessageSquare, Mic } from "lucide-react";
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
@@ -11,19 +11,14 @@ import AnalysisPage from "../analysis/AnalysisPage";
 import VSmartAIPage from "../vsmartai/VSmartAIPage";
 import ToolsPage from "../tools/ToolsPage";
 import ChatWidget from "../chat/ChatWidget";
-import { askVSmart } from "../../../core/aiEngine";
-import { useVoice, speak } from "../../voice/useVoice";
+import { askVoiceAgent } from "../../../core/aiEngine";
+import { useVoice, speak, cancelSpeech } from "../../voice/useVoice";
 import type { ReplyLang, ChatHistoryMessage } from "../../../llm/openrouter";
 import "./layout.css";
 
-export type Page =
-  | "dashboard"
-  | "agents"
-  | "tasks"
-  | "calendar"
-  | "memory"
-  | "conversations"
-  | "tools";
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+export type Page = "dashboard" | "agents" | "tasks" | "calendar" | "memory" | "conversations" | "tools";
 
 export interface Message {
   sender: "You" | "VSmart";
@@ -43,259 +38,193 @@ interface SidebarItem {
   enabled: boolean;
 }
 
-const CONVERSATIONS_KEY = "chat_conversations";
-const SIDEBAR_KEY = "sidebar_settings";
-// How many prior messages (both sides) to send as context with each new
-// chat request — keeps the request small while still giving the model
-// enough short-term memory to resolve "iska", "wahi wala", follow-ups, etc.
-const MAX_HISTORY_MESSAGES = 10;
+// ── Constants ─────────────────────────────────────────────────────────────────
 
-const DEFAULT_SIDEBAR_ITEMS: SidebarItem[] = [
-  { page: "dashboard", label: "Home", enabled: true },
-  { page: "agents", label: "Apps", enabled: true },
-  { page: "tasks", label: "Files", enabled: true },
-  { page: "memory", label: "Workspace", enabled: true },
-  { page: "tools", label: "Terminal", enabled: true }
+const CONVERSATIONS_KEY = "chat_conversations";
+const SIDEBAR_KEY       = "sidebar_settings";
+const MAX_HISTORY       = 10;
+
+const DEFAULT_SIDEBAR: SidebarItem[] = [
+  { page: "dashboard",  label: "Home",        enabled: true },
+  { page: "agents",     label: "Apps",         enabled: true },
+  { page: "tasks",      label: "Files",        enabled: true },
+  { page: "memory",     label: "VSmart Chat",  enabled: true },
+  { page: "tools",      label: "Terminal",     enabled: true },
 ];
 
 function makeTitle(messages: Message[]): string {
-  const firstUserMsg = messages.find((m) => m.sender === "You");
-  if (!firstUserMsg) return "New Chat";
-  return firstUserMsg.text.length > 32
-    ? firstUserMsg.text.slice(0, 32) + "…"
-    : firstUserMsg.text;
+  const first = messages.find(m => m.sender === "You");
+  if (!first) return "New Chat";
+  return first.text.length > 32 ? first.text.slice(0, 32) + "…" : first.text;
 }
 
+// ── Component ─────────────────────────────────────────────────────────────────
+
 export default function MainLayout() {
-  const [activePage, setActivePage] = useState<Page>("dashboard");
-  const [chatOpen, setChatOpen] = useState(false);
-  const [chatMinimized, setChatMinimized] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  const [activePage,          setActivePage]          = useState<Page>("dashboard");
+  const [chatOpen,            setChatOpen]            = useState(false);
+  const [chatMinimized,       setChatMinimized]       = useState(false);
+  const [settingsOpen,        setSettingsOpen]        = useState(false);
+  const [conversations,       setConversations]       = useState<Conversation[]>([]);
+  const [activeConvId,        setActiveConvId]        = useState<string | null>(null);
   const [conversationsLoaded, setConversationsLoaded] = useState(false);
-  const [replyLang, setReplyLang] = useState<ReplyLang>("en");
-  const [wakeWordEnabled, setWakeWordEnabled] = useState(
+  const [replyLang,           setReplyLang]           = useState<ReplyLang>("en");
+  const [wakeWordEnabled,     setWakeWordEnabled]     = useState(
     () => localStorage.getItem("vsmart_wakeword") === "true"
   );
-  const [historyTrigger, setHistoryTrigger] = useState(0);
+  const [historyTrigger,      setHistoryTrigger]      = useState(0);
+  const [sidebarEnabled,      setSidebarEnabled]      = useState(true);
+  const [sidebarItems,        setSidebarItems]        = useState<SidebarItem[]>(DEFAULT_SIDEBAR);
 
-  const [sidebarEnabled, setSidebarEnabled] = useState(true);
-  const [sidebarItems, setSidebarItems] = useState<SidebarItem[]>(DEFAULT_SIDEBAR_ITEMS);
-
+  // ── Sidebar settings persistence ──────────────────────────────────────────
   useEffect(() => {
-    (async () => {
+    window.vsmart.getMemory(SIDEBAR_KEY).then(raw => {
+      if (!raw) return;
       try {
-        const raw = await window.vsmart.getMemory(SIDEBAR_KEY);
-        if (raw) {
-          const saved = JSON.parse(raw);
-          setSidebarEnabled(saved.enabled);
-          // Merge with the current defaults instead of trusting the saved
-          // list verbatim — older saves may reference pages/labels
-          // ("Calendar", "Conversations", "Analysis"...) that no longer
-          // exist in the sidebar, which made their toggles do nothing.
-          const savedByPage: Record<string, SidebarItem> = {};
-          (Array.isArray(saved.items) ? saved.items : []).forEach((it: SidebarItem) => {
-            savedByPage[it.page] = it;
-          });
-          const merged = DEFAULT_SIDEBAR_ITEMS.map((def) => ({
-            ...def,
-            enabled: savedByPage[def.page]?.enabled ?? def.enabled
-          }));
-          setSidebarItems(merged);
-        }
-      } catch {}
-    })();
+        const saved = JSON.parse(raw);
+        setSidebarEnabled(saved.enabled ?? true);
+        const byPage: Record<string, SidebarItem> = {};
+        (saved.items ?? []).forEach((it: SidebarItem) => { byPage[it.page] = it; });
+        setSidebarItems(DEFAULT_SIDEBAR.map(d => ({ ...d, enabled: byPage[d.page]?.enabled ?? d.enabled })));
+      } catch { /* corrupt — use defaults */ }
+    }).catch(() => {});
   }, []);
 
   const updateSidebarSettings = async (enabled: boolean, items: SidebarItem[]) => {
     setSidebarEnabled(enabled);
     setSidebarItems(items);
-    await window.vsmart.saveMemory(
-      SIDEBAR_KEY,
-      JSON.stringify({ enabled, items })
-    );
+    await window.vsmart.saveMemory(SIDEBAR_KEY, JSON.stringify({ enabled, items })).catch(() => {});
   };
 
+  // ── Conversation persistence ───────────────────────────────────────────────
   useEffect(() => {
-    (async () => {
-      try {
-        const raw = await window.vsmart.getMemory(CONVERSATIONS_KEY);
-        if (raw) {
+    window.vsmart.getMemory(CONVERSATIONS_KEY).then(raw => {
+      if (raw) {
+        try {
           const saved: Conversation[] = JSON.parse(raw);
           setConversations(saved);
-          if (saved.length > 0) {
-            setActiveConversationId(saved[0].id);
-          }
-        }
-      } catch {
-      } finally {
-        setConversationsLoaded(true);
+          if (saved.length > 0) setActiveConvId(saved[0].id);
+        } catch { /* corrupt */ }
       }
-    })();
+    }).catch(() => {}).finally(() => setConversationsLoaded(true));
   }, []);
 
   useEffect(() => {
     if (!conversationsLoaded) return;
-    window.vsmart
-      .saveMemory(CONVERSATIONS_KEY, JSON.stringify(conversations))
-      .catch(() => {});
+    window.vsmart.saveMemory(CONVERSATIONS_KEY, JSON.stringify(conversations)).catch(() => {});
   }, [conversations, conversationsLoaded]);
 
+  // ── Open chat on vsmart-open-chat event ───────────────────────────────────
   useEffect(() => {
-    const open = () => {
-      setChatOpen(true);
-      setChatMinimized(false);
-    };
+    const open = () => { setChatOpen(true); setChatMinimized(false); };
     window.addEventListener("vsmart-open-chat", open);
     return () => window.removeEventListener("vsmart-open-chat", open);
   }, []);
 
-  const activeConversation =
-    conversations.find((c) => c.id === activeConversationId) ?? null;
-  const messages = activeConversation?.messages ?? [];
+  // ── Conversation helpers ───────────────────────────────────────────────────
+  const activeConv  = conversations.find(c => c.id === activeConvId) ?? null;
+  const messages    = activeConv?.messages ?? [];
 
   const newChat = () => {
-    const conv: Conversation = {
-      id: `${Date.now()}`,
-      title: "New Chat",
-      messages: [],
-      updatedAt: Date.now()
-    };
-    setConversations((prev) => [conv, ...prev]);
-    setActiveConversationId(conv.id);
+    const conv: Conversation = { id: `${Date.now()}`, title: "New Chat", messages: [], updatedAt: Date.now() };
+    setConversations(prev => [conv, ...prev]);
+    setActiveConvId(conv.id);
     setChatOpen(true);
     setChatMinimized(false);
   };
 
   const selectConversation = (id: string) => {
-    setActiveConversationId(id);
+    setActiveConvId(id);
     setChatOpen(true);
     setChatMinimized(false);
   };
 
   const deleteConversation = (id: string) => {
-    setConversations((prev) => {
-      const next = prev.filter((c) => c.id !== id);
-      if (activeConversationId === id) {
-        setActiveConversationId(next[0]?.id ?? null);
-      }
+    setConversations(prev => {
+      const next = prev.filter(c => c.id !== id);
+      if (activeConvId === id) setActiveConvId(next[0]?.id ?? null);
       return next;
     });
   };
 
   const deleteConversations = (ids: string[]) => {
-    setConversations((prev) => {
-      const next = prev.filter((c) => !ids.includes(c.id));
-      if (activeConversationId && ids.includes(activeConversationId)) {
-        setActiveConversationId(next[0]?.id ?? null);
-      }
+    setConversations(prev => {
+      const next = prev.filter(c => !ids.includes(c.id));
+      if (activeConvId && ids.includes(activeConvId)) setActiveConvId(next[0]?.id ?? null);
       return next;
     });
   };
 
-  const sendCommand = async (text: string) => {
+  // ── Voice command handler ─────────────────────────────────────────────────
+  // This is the VOICE AGENT path — executes real system actions and speaks back.
+  // VSmart Chat (VSmartAIPage) has its own separate path via askSmartChat().
+  const sendCommand = useCallback(async (text: string) => {
     if (!text.trim()) return;
     setChatOpen(true);
     setChatMinimized(false);
 
-    let convId = activeConversationId;
-
+    let convId = activeConvId;
     if (!convId) {
-      const conv: Conversation = {
-        id: `${Date.now()}`,
-        title: "New Chat",
-        messages: [],
-        updatedAt: Date.now()
-      };
-      setConversations((prev) => [conv, ...prev]);
+      const conv: Conversation = { id: `${Date.now()}`, title: "New Chat", messages: [], updatedAt: Date.now() };
+      setConversations(prev => [conv, ...prev]);
       convId = conv.id;
-      setActiveConversationId(convId);
+      setActiveConvId(convId);
     }
 
-    setConversations((prev) =>
-      prev.map((c) => {
-        if (c.id !== convId) return c;
-        const updatedMsgs = [...c.messages, { sender: "You" as const, text }];
-        return {
-          ...c,
-          messages: updatedMsgs,
-          title: c.title === "New Chat" ? makeTitle(updatedMsgs) : c.title,
-          updatedAt: Date.now()
-        };
-      })
-    );
+    // Append user message
+    setConversations(prev => prev.map(c => {
+      if (c.id !== convId) return c;
+      const msgs = [...c.messages, { sender: "You" as const, text }];
+      return { ...c, messages: msgs, title: c.title === "New Chat" ? makeTitle(msgs) : c.title, updatedAt: Date.now() };
+    }));
 
-    // Build history from the conversation as it was *before* this new
-    // message — the current activeConversation's messages, since the state
-    // update above is async and won't be visible yet.
-    const priorMessages = activeConversation?.messages ?? [];
-    const history: ChatHistoryMessage[] = priorMessages
-      .slice(-MAX_HISTORY_MESSAGES)
-      .map((m) => ({
-        role: m.sender === "You" ? ("user" as const) : ("assistant" as const),
-        content: m.text
-      }));
+    const history: ChatHistoryMessage[] = (activeConv?.messages ?? [])
+      .slice(-MAX_HISTORY)
+      .map(m => ({ role: m.sender === "You" ? "user" as const : "assistant" as const, content: m.text }));
 
-    let result: Awaited<ReturnType<typeof askVSmart>>;
-    try {
-      result = await askVSmart(text, replyLang, history);
-    } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") {
-        // This request was superseded by a newer message (or timed out) —
-        // stay silent, the newer request's reply is what the user cares about.
-        return;
-      }
-      const message =
-        err instanceof Error ? err.message : "Something went wrong. Please try again.";
-      setConversations((prev) =>
-        prev.map((c) =>
-          c.id === convId
-            ? {
-                ...c,
-                messages: [...c.messages, { sender: "VSmart" as const, text: message }],
-                updatedAt: Date.now()
-              }
-            : c
-        )
-      );
-      return;
-    }
+    const ttsLang = replyLang === "hi" ? "hi-IN" : "en-IN";
 
-    const reply = result.message ?? "Done.";
-
-    setConversations((prev) =>
-      prev.map((c) =>
+    const deliver = (reply: string) => {
+      if (!reply.trim()) return;
+      setConversations(prev => prev.map(c =>
         c.id === convId
-          ? {
-              ...c,
-              messages: [...c.messages, { sender: "VSmart" as const, text: reply }],
-              updatedAt: Date.now()
-            }
+          ? { ...c, messages: [...c.messages, { sender: "VSmart" as const, text: reply }], updatedAt: Date.now() }
           : c
-      )
-    );
+      ));
+      cancelSpeech();
+      speak(reply, ttsLang);
+    };
 
-    if (result.action !== "chat") {
-      speak(reply, replyLang === "hi" ? "hi-IN" : "en-IN");
+    try {
+      const result = await askVoiceAgent(text, replyLang, history);
+      deliver(result.message ?? "Done.");
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
+      deliver(err instanceof Error ? err.message : "Something went wrong.");
     }
-  };
+  }, [activeConvId, activeConv, replyLang]);
 
-  // Single shared voice-assistant identity — the Orb, the dock mic, and
-  // the mic inside the chat widget are all the same assistant, just
-  // different entry points into the same useVoice instance. All of them
-  // route through sendCommand -> askVSmart, so context/memory stays one
-  // continuous thread no matter which UI element triggered it.
+  // ── Voice hook ────────────────────────────────────────────────────────────
   const voice = useVoice({
     onCommand: sendCommand,
-    wakeWordEnabled
+    lang: replyLang === "hi" ? "hi-IN" : "en-IN",
+    wakeWordEnabled,
   });
 
+  // Auto-open chat when voice becomes active
+  useEffect(() => {
+    if (voice.listening || voice.transcribing) {
+      setChatOpen(true);
+      setChatMinimized(false);
+    }
+  }, [voice.listening, voice.transcribing]);
+
+  // ── Navigation ────────────────────────────────────────────────────────────
   const handleNavigate = (page: Page) => {
     if (page === "conversations") {
       setChatOpen(true);
       setChatMinimized(false);
-      setHistoryTrigger((t) => t + 1);
+      setHistoryTrigger(t => t + 1);
       return;
     }
     setActivePage(page);
@@ -303,41 +232,17 @@ export default function MainLayout() {
 
   const renderPage = () => {
     switch (activePage) {
-      case "dashboard":
-        return (
-          <CommandCenter
-            messages={messages}
-            voice={voice}
-            onOpenChat={() => {
-              setChatOpen(true);
-              setChatMinimized(false);
-            }}
-          />
-        );
-      case "agents":
-        return <AnalysisPage />;
-      case "tasks":
-        return <TasksPage />;
-      case "calendar":
-        return <CalendarPage />;
-      case "memory":
-        return <VSmartAIPage replyLang={replyLang} />;
-      case "tools":
-        return <ToolsPage />;
-      default:
-        return (
-          <CommandCenter
-            messages={messages}
-            voice={voice}
-            onOpenChat={() => {
-              setChatOpen(true);
-              setChatMinimized(false);
-            }}
-          />
-        );
+      case "dashboard":  return <CommandCenter messages={messages} voice={voice} onOpenChat={() => { setChatOpen(true); setChatMinimized(false); }} />;
+      case "agents":     return <AnalysisPage />;
+      case "tasks":      return <TasksPage />;
+      case "calendar":   return <CalendarPage />;
+      case "memory":     return <VSmartAIPage replyLang={replyLang} voice={voice} />;
+      case "tools":      return <ToolsPage />;
+      default:           return <CommandCenter messages={messages} voice={voice} onOpenChat={() => { setChatOpen(true); setChatMinimized(false); }} />;
     }
   };
 
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="app-shell">
       <div className="layout-row">
@@ -349,7 +254,6 @@ export default function MainLayout() {
           sidebarItems={sidebarItems}
           onOpenSettings={() => setSettingsOpen(true)}
         />
-
         <main className="main-content">
           <Topbar onOpenSettings={() => setSettingsOpen(true)} />
           <section className="page-content">{renderPage()}</section>
@@ -366,10 +270,10 @@ export default function MainLayout() {
         voice={voice}
         replyLang={replyLang}
         onLangChange={setReplyLang}
-        onMinimizeToggle={() => setChatMinimized((prev) => !prev)}
+        onMinimizeToggle={() => setChatMinimized(p => !p)}
         onClose={() => setChatOpen(false)}
         conversations={conversations}
-        activeConversationId={activeConversationId}
+        activeConversationId={activeConvId}
         onNewChat={newChat}
         onSelectConversation={selectConversation}
         onDeleteConversation={deleteConversation}
@@ -394,29 +298,17 @@ export default function MainLayout() {
 
       {!chatOpen && (
         <div className="ask-vind-dock">
-          <button
-            className="ask-vind-pill"
-            onClick={() => {
-              setChatOpen(true);
-              setChatMinimized(false);
-            }}
-            title="Ask V-IND AI"
-          >
-            <span className="ask-vind-icon-badge">
-              <MessageSquare size={15} />
-            </span>
-            <span>Ask V-IND AI</span>
+          <button className="ask-vind-pill" onClick={() => { setChatOpen(true); setChatMinimized(false); }} title="VSmart Voice AI">
+            <span className="ask-vind-icon-badge"><MessageSquare size={15} /></span>
+            <span>VSmart Voice AI</span>
           </button>
-
           <button
             className={voice.listening ? "ask-vind-mic listening" : "ask-vind-mic"}
             onClick={voice.toggleListening}
-            title="Talk to V-IND AI"
+            title="Talk to VSmart"
           >
             <span className="ask-vind-mic-ring" aria-hidden="true" />
-            <span className="ask-vind-mic-core">
-              <Mic size={16} />
-            </span>
+            <span className="ask-vind-mic-core"><Mic size={16} /></span>
           </button>
         </div>
       )}

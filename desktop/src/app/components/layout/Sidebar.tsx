@@ -48,7 +48,7 @@ const NAV_ITEMS: { page: Page; icon: React.ReactNode; label: string }[] = [
   { page: "dashboard", icon: <Home size={19} />, label: "Home" },
   { page: "agents", icon: <Grid3x3 size={19} />, label: "Apps" },
   { page: "tasks", icon: <FolderClosed size={19} />, label: "Files" },
-  { page: "memory", icon: <Briefcase size={19} />, label: "Workspace" },
+  { page: "memory", icon: <Briefcase size={19} />, label: "VSmart Chat" },
   { page: "tools", icon: <TerminalSquare size={19} />, label: "Terminal" }
 ];
 

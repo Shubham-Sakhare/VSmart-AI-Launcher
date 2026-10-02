@@ -38,8 +38,8 @@ callback(false);
 // slightly looser policy (Vite's dev server + HMR websocket); production
 // gets a strict one with no remote script/style sources at all.
 const csp=app.isPackaged
-?"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' https://openrouter.ai; media-src 'self'; object-src 'none'; base-uri 'self';"
-:"default-src 'self' http://localhost:5173 ws://localhost:5173; script-src 'self' http://localhost:5173 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline' http://localhost:5173; img-src 'self' data: http://localhost:5173; font-src 'self' data:; connect-src 'self' http://localhost:5173 ws://localhost:5173 https://openrouter.ai; media-src 'self'; object-src 'none';";
+?"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' https://openrouter.ai; media-src 'self' data: blob:; object-src 'none'; base-uri 'self';"
+:"default-src 'self' http://localhost:5173 ws://localhost:5173; script-src 'self' http://localhost:5173 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline' http://localhost:5173; img-src 'self' data: http://localhost:5173; font-src 'self' data:; connect-src 'self' http://localhost:5173 ws://localhost:5173 https://openrouter.ai; media-src 'self' data: blob:; object-src 'none';";
 
 session.defaultSession.webRequest.onHeadersReceived((details,callback)=>{
 callback({
