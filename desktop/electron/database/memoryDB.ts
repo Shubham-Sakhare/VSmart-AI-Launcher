@@ -253,6 +253,9 @@ function tokenize(
 ): string[] {
   return text
     .toLowerCase()
+    // eslint-disable-next-line no-misleading-character-class -- intentional:
+    // \u0900-\u097F is the Devanagari block, which includes combining vowel
+    // signs (matras) needed for correct Hindi tokenization. Not a mistake.
     .replace(
       /[^a-z0-9\u0900-\u097F\s]/g,
       " "

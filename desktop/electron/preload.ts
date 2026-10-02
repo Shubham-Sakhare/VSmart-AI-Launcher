@@ -52,10 +52,8 @@ ipcRenderer.invoke("open-system",appName),
 writeCode:(code:string,language?:string,filename?:string)=>
 ipcRenderer.invoke("write-code",code,language,filename),
 
-
 systemControl:(action:string,value?:string|number)=>
 ipcRenderer.invoke("system:control",{action,value}),
-
 
 getMarketFeed:()=>
 ipcRenderer.invoke("market:getFeed"),
@@ -66,28 +64,19 @@ ipcRenderer.invoke("market:getAnalysisFeed"),
 getChartAnalysis:(symbol:string,label:string,timeframe?:string)=>
 ipcRenderer.invoke("market:getChartAnalysis",symbol,label,timeframe),
 
-
-
 /* WINDOWS APPS */
-
 getInstalledApps:()=>
 ipcRenderer.invoke("get-installed-apps"),
-
 
 launchSystemApp:(appId:string)=>
 ipcRenderer.invoke("launch-system-app",appId),
 
-
 vision:{
-
 captureScreen:()=>
 ipcRenderer.invoke("vision:captureScreen")
-
 },
 
-
 project:{
-
 create:(folderName:string,files:{path:string;content:string}[])=>
 ipcRenderer.invoke("project:create",folderName,files),
 
@@ -105,12 +94,9 @@ ipcRenderer.invoke("project:listFiles",projectPath),
 
 runCommand:(projectPath:string,command:string)=>
 ipcRenderer.invoke("project:runCommand",projectPath,command)
-
 },
 
-
 fileSearch:{
-
 search:(query:string)=>
 ipcRenderer.invoke("filesearch:search",query),
 
@@ -119,12 +105,9 @@ ipcRenderer.invoke("filesearch:openFile",path),
 
 openLocation:(path:string)=>
 ipcRenderer.invoke("filesearch:openLocation",path)
-
 },
 
-
 desktopControl:{
-
 move:(x:number,y:number)=>
 ipcRenderer.invoke("desktopcontrol:move",x,y),
 
@@ -139,12 +122,9 @@ ipcRenderer.invoke("desktopcontrol:type",text),
 
 pressKey:(combo:string)=>
 ipcRenderer.invoke("desktopcontrol:pressKey",combo)
-
 },
 
-
 launcher:{
-
 getLibraryApps:()=>
 ipcRenderer.invoke("launcher:getLibraryApps"),
 
@@ -174,11 +154,7 @@ ipcRenderer.invoke("launcher:pickAndAddCustomApp"),
 
 launchPath:(filePath:string)=>
 ipcRenderer.invoke("launcher:launchPath",filePath)
-
 },
-
-
-
 
 system:{
 getInfo:()=>
@@ -193,11 +169,9 @@ ipcRenderer.invoke("system:getChromeProfiles"),
 openChromeProfile:(directory:string)=>
 ipcRenderer.invoke("system:openChromeProfile",directory),
 
-/** Desktop folder items (files, folders, shortcuts on the main screen). */
 getDesktopItems:(force?:boolean)=>
 ipcRenderer.invoke("system:getDesktopItems",force),
 
-/** Quick places: Home, Documents, Downloads, Pictures, Music, Videos, Desktop */
 getSystemPlaces:()=>
 ipcRenderer.invoke("system:getSystemPlaces"),
 
@@ -205,63 +179,27 @@ openDesktopItem:(itemPath:string)=>
 ipcRenderer.invoke("system:openDesktopItem",itemPath)
 },
 
-
-
 voice:{
-
 sendAudioChunk:(chunk:ArrayBuffer)=>
 ipcRenderer.send("voice:audio-chunk",chunk),
-
 
 reset:()=>
 ipcRenderer.send("voice:reset"),
 
-/** Whisper is batch-based — call this once the renderer's own VAD/silence
-    detection decides the turn is over, to get the transcript back.
-    Pass the current reply language ("en"/"hi") so Whisper decodes with an
-    explicit language hint instead of "auto" — auto-detect is unreliable on
-    short clips and can misfire into the wrong language entirely. */
+/** Batch-mode transcription. Call once VAD detects end of turn.
+    Pass lang ("en"/"hi") for a faster, more accurate result vs "auto". */
 finalize:(lang?:string)=>
-ipcRenderer.invoke("voice:finalize",lang),
-
-
-onPartialResult:(callback:(text:string)=>void)=>{
-
-ipcRenderer.removeAllListeners("voice:partial-result");
-
-ipcRenderer.on(
-"voice:partial-result",
-(_e,text)=>callback(text)
-);
-
+ipcRenderer.invoke("voice:finalize",lang)
 },
 
-
-onFinalResult:(callback:(text:string)=>void)=>{
-
-ipcRenderer.removeAllListeners("voice:final-result");
-
-ipcRenderer.on(
-"voice:final-result",
-(_e,text)=>callback(text)
-);
-
-}
-
-},
-
-/** Natural neural text-to-speech (Microsoft Edge voices) — returns a base64
-    audio data URL to play, or null if unavailable (e.g. no internet), in
-    which case the renderer falls back to the offline browser voice. */
+/** Natural neural TTS (Microsoft Edge Indian voices).
+    Returns a base64 audio data URL or null (falls back to offline TTS). */
 tts:{
-
 synthesize:(text:string,lang:"en"|"hi",gender:"male"|"female")=>
 ipcRenderer.invoke("tts:synthesize",text,lang,gender)
-
 },
 
 apiKey:{
-
 save:(key:string)=>
 ipcRenderer.invoke("apikey:save",key),
 
@@ -273,17 +211,14 @@ ipcRenderer.invoke("apikey:has"),
 
 clear:()=>
 ipcRenderer.invoke("apikey:clear")
-
 },
 
 launchPref:{
-
 get:()=>
 ipcRenderer.invoke("launchpref:get"),
 
 set:(enabled:boolean)=>
 ipcRenderer.invoke("launchpref:set",enabled)
-
 }
 
 });

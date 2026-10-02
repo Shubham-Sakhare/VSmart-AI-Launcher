@@ -10,7 +10,13 @@ import {
   writeNotepad,
   restartPC,
   shutdownPC,
-  cancelShutdown
+  cancelShutdown,
+  mediaPlayPause,
+  mediaNext,
+  mediaPrev,
+  mediaStop,
+  mediaMute,
+  windowAction
 } from "../services/systemControlService.js";
 
 export interface ControlPayload {
@@ -64,6 +70,38 @@ export function registerSystemControlIPC() {
 
           case "cancelShutdown":
             return await cancelShutdown();
+
+          // --- Media controls ---
+          case "mediaPlayPause":
+            return await mediaPlayPause();
+
+          case "mediaNext":
+            return await mediaNext();
+
+          case "mediaPrev":
+            return await mediaPrev();
+
+          case "mediaStop":
+            return await mediaStop();
+
+          case "mediaMute":
+            return await mediaMute();
+
+          // --- Window management ---
+          case "windowMinimize":
+            return await windowAction("minimize");
+
+          case "windowMaximize":
+            return await windowAction("maximize");
+
+          case "windowClose":
+            return await windowAction("close");
+
+          case "windowMinimizeAll":
+            return await windowAction("minimize_all");
+
+          case "windowShowDesktop":
+            return await windowAction("show_desktop");
 
           default:
             return `Unknown system control action: ${payload.action}`;

@@ -326,3 +326,64 @@
     70%{ box-shadow:0 0 0 10px rgba(255,46,109,0); }
     100%{ box-shadow:0 0 0 0 rgba(255,46,109,0); }
 }
+
+/* Transcribing state for mic button */
+.mic-btn.transcribing{
+    background:rgba(var(--accent-rgb), .1);
+    border-color:rgba(var(--accent-rgb), .4);
+    color:var(--accent);
+    cursor:wait;
+    opacity:.7;
+}
+
+/* Transcribing bubble — slightly different style from listening */
+.bubble-transcribing{
+    display:flex;
+    flex-direction:row !important;
+    align-items:center;
+    gap:8px;
+}
+.bubble-transcribing p{
+    margin:0;
+    font-size:13px;
+}
+
+/* Animated dots shown inside the listening interim bubble */
+.interim-dot{
+    display:inline-block;
+    width:5px;
+    height:5px;
+    border-radius:50%;
+    background:currentColor;
+    opacity:.5;
+    animation:interim-bounce .9s infinite ease-in-out both;
+    margin-right:2px;
+}
+.interim-dot:nth-child(1){ animation-delay:0s; }
+.interim-dot:nth-child(2){ animation-delay:.18s; }
+.interim-dot:nth-child(3){ animation-delay:.36s; }
+
+@keyframes interim-bounce{
+    0%,80%,100%{ transform:translateY(0); opacity:.5; }
+    40%{ transform:translateY(-4px); opacity:1; }
+}
+
+/* Spin animation for Loader2 icon */
+.spin{
+    animation:icon-spin .8s linear infinite;
+    flex-shrink:0;
+}
+@keyframes icon-spin{
+    from{ transform:rotate(0deg); }
+    to{ transform:rotate(360deg); }
+}
+
+/* Status badge — include spinner + text side by side */
+.chat-header-status{
+    display:flex;
+    align-items:center;
+    gap:5px;
+    font-size:11px;
+    color:#ff5c86;
+    animation:blink-status 1.4s infinite;
+}

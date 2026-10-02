@@ -250,7 +250,7 @@ backgroundRefreshInFlight=false;
 
 export function clearAppsCache(){
 installedAppsCache=null;
-try{fs.unlinkSync(APPS_CACHE_FILE);}catch{}
+try{fs.unlinkSync(APPS_CACHE_FILE);}catch{/* cache file may not exist yet — fine to ignore */}
 }
 
 export function launchSystemApp(appId:string):Promise<boolean>{
@@ -534,8 +534,6 @@ google:"https://www.google.com/search?q="
 };
 
 
-let lastSite:string|null=null;
-
 // Navigates the already-open YouTube tab (from openInSession's session
 // tracking) to a search results page - used for the "open youtube" ->
 // "what do you want to watch?" -> search follow-up flow.
@@ -661,8 +659,6 @@ await runCommand(
 appMap[appKey]
 );
 
-lastSite=null;
-
 return "";
 
 }catch{
@@ -688,8 +684,6 @@ await openInSession(
 siteKey,
 siteMap[siteKey]
 );
-
-lastSite=siteKey;
 
 return "";
 

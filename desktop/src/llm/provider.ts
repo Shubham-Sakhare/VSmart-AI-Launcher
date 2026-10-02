@@ -1,29 +1,20 @@
-import { askHunyuan, askQwenCoder, isCodingPrompt, type ReplyLang, type ChatHistoryMessage } from "./openrouter";
-
-const provider =
-  import.meta.env.VITE_AI_PROVIDER?.toLowerCase() ?? "auto";
+// provider.ts — thin wrapper used by factExtractorAgent and chatAgent
+// Routes to the right model based on prompt type.
+import { askQwenCoder, callWithFallback, getApiKey, isCodingPrompt, langRule, CHAT_MODELS, type ReplyLang, type ChatHistoryMessage, type ApiMessage } from "./openrouter";
 
 export async function askAI(
   prompt: string,
   lang: ReplyLang = "en",
   history: ChatHistoryMessage[] = []
 ): Promise<string> {
-  switch (provider) {
-    case "hunyuan":
-      return await askHunyuan(prompt, lang, history);
-
-    case "qwen":
-      return await askQwenCoder(prompt, lang);
-
-    case "auto":
-    default: {
-      // Only call the model that's actually needed for this prompt —
-      // never both — to keep load and cost down.
-      const useCoder = isCodingPrompt(prompt);
-
-      return useCoder
-        ? await askQwenCoder(prompt, lang)
-        : await askHunyuan(prompt, lang, history);
-    }
+  if (isCodingPrompt(prompt)) {
+    return askQwenCoder(prompt, lang);
   }
+  const key = await getApiKey();
+  const msgs: ApiMessage[] = [
+    { role: "system", content: `You are a helpful AI assistant. ${langRule(lang)}` },
+    ...history.slice(-8).map(h => ({ role: h.role, content: h.content })),
+    { role: "user", content: prompt },
+  ];
+  return callWithFallback(key, CHAT_MODELS, msgs);
 }
