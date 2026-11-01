@@ -2,7 +2,9 @@ import { ipcMain } from "electron";
 import {
   openSpecialFolder,
   setVolume,
+  adjustVolume,
   setBrightness,
+  adjustBrightness,
   toggleWifi,
   toggleBluetooth,
   takeScreenshot,
@@ -38,8 +40,20 @@ export function registerSystemControlIPC() {
           case "setVolume":
             return await setVolume(Number(payload.value ?? 50));
 
+          case "volumeUp":
+            return await adjustVolume("up", Number(payload.value ?? 10));
+
+          case "volumeDown":
+            return await adjustVolume("down", Number(payload.value ?? 10));
+
           case "setBrightness":
             return await setBrightness(Number(payload.value ?? 50));
+
+          case "brightnessUp":
+            return await adjustBrightness("up", Number(payload.value ?? 15));
+
+          case "brightnessDown":
+            return await adjustBrightness("down", Number(payload.value ?? 15));
 
           case "wifiOn":
             return await toggleWifi("on");

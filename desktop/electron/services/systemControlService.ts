@@ -96,6 +96,79 @@ public class AudioVolume {
   }
 }
 
+// ---------- Volume relative adjustment ----------
+export async function adjustVolume(direction: "up" | "down", stepPct = 10): Promise<string> {
+  // Read current volume, then step by ±stepPct
+  const script = `
+Add-Type -TypeDefinition @'
+using System.Runtime.InteropServices;
+[Guid("5CDF2C82-841E-4546-9722-0CF74078229A"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface IAudioEndpointVolume {
+  int f(); int g(); int h(); int i();
+  int SetMasterVolumeLevelScalar(float fLevel, System.Guid pguidEventContext);
+  int j();
+  int GetMasterVolumeLevelScalar(out float pfLevel);
+}
+[Guid("D666063F-1587-4E43-81F1-B948E807363F"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface IMMDevice { int Activate(ref System.Guid id, int clsCtx, System.IntPtr activationParams, out IAudioEndpointVolume aev); }
+[Guid("A95664D2-9614-4F35-A746-DE8DB63617E6"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface IMMDeviceEnumerator { int f(); int GetDefaultAudioEndpoint(int dataFlow, int role, out IMMDevice endpoint); }
+[ComImport, Guid("BCDE0395-E52F-467C-8E3D-C4579291692E")] class MMDeviceEnumeratorComObject { }
+public class AudioVolumeAdj {
+  public static float GetVolume() {
+    var e = new MMDeviceEnumeratorComObject() as IMMDeviceEnumerator;
+    IMMDevice dev; e.GetDefaultAudioEndpoint(0, 1, out dev);
+    var iid = typeof(IAudioEndpointVolume).GUID;
+    IAudioEndpointVolume aev; dev.Activate(ref iid, 23, System.IntPtr.Zero, out aev);
+    float v; aev.GetMasterVolumeLevelScalar(out v); return v;
+  }
+  public static void SetVolume(float level) {
+    var e = new MMDeviceEnumeratorComObject() as IMMDeviceEnumerator;
+    IMMDevice dev; e.GetDefaultAudioEndpoint(0, 1, out dev);
+    var iid = typeof(IAudioEndpointVolume).GUID;
+    IAudioEndpointVolume aev; dev.Activate(ref iid, 23, System.IntPtr.Zero, out aev);
+    aev.SetMasterVolumeLevelScalar(level, System.Guid.Empty);
+  }
+}
+'@ -ReferencedAssemblies System.Runtime.InteropServices -PassThru | Out-Null
+$cur = [AudioVolumeAdj]::GetVolume()
+$step = ${stepPct / 100}
+$next = [Math]::Max(0.0, [Math]::Min(1.0, $cur ${direction === "up" ? "+" : "-"} $step))
+[AudioVolumeAdj]::SetVolume($next)
+[int]($next * 100)
+`;
+  try {
+    const result = await runPS(script);
+    const newPct = parseInt(result.trim(), 10);
+    const label = direction === "up" ? "badha diya" : "ghata diya";
+    return isNaN(newPct)
+      ? `Volume ${label}.`
+      : `Volume ${label} — ab ${newPct}% hai.`;
+  } catch {
+    return `Volume nahi badla — try karo dobara.`;
+  }
+}
+
+// ---------- Brightness relative adjustment ----------
+export async function adjustBrightness(direction: "up" | "down", stepPct = 15): Promise<string> {
+  const script = `
+$cur = (Get-WmiObject -Namespace root/WMI -Class WmiMonitorBrightness).CurrentBrightness
+$next = [Math]::Max(0, [Math]::Min(100, $cur ${direction === "up" ? "+" : "-"} ${stepPct}))
+(Get-WmiObject -Namespace root/WMI -Class WmiMonitorBrightnessMethods).WmiSetBrightness(1,$next)
+$next
+`;
+  try {
+    const result = await runPS(script);
+    const newPct = parseInt(result.trim(), 10);
+    const label = direction === "up" ? "badha di" : "ghata di";
+    return isNaN(newPct)
+      ? `Brightness ${label}.`
+      : `Brightness ${label} — ab ${newPct}% hai.`;
+  } catch {
+    return `Brightness nahi badli — display software control support nahi karta shayad.`;
+  }
+}
+
 // ---------- Brightness ----------
 export async function setBrightness(percent: number): Promise<string> {
   const clamped = Math.max(0, Math.min(100, percent));

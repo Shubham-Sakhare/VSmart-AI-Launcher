@@ -92,7 +92,12 @@ async function readPdf(filePath: string): Promise<FileReadResult> {
     }
 
     const buf  = fs.readFileSync(filePath);
-    const data = await pdfParse.default(buf);
+    // pdf-parse ESM export may not have .default — try both
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const parseFn = typeof (pdfParse as any).default === "function"
+      ? (pdfParse as any).default
+      : pdfParse;
+    const data = await parseFn(buf);
     return {
       success:  true,
       content:  data.text,

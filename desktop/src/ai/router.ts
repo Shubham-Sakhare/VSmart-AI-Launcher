@@ -348,6 +348,29 @@ export async function route(
     }
 
     case "file": {
+      const lowerCmd = command.toLowerCase();
+
+      // Read a specific file by path
+      if (
+        lowerCmd.startsWith("/") || lowerCmd.includes(":\\") ||
+        /\b(read|padh|open karke padh|padhna hai)\b/.test(lowerCmd)
+      ) {
+        const { fileReadAgent } = await import("../agents/fileReadAgent");
+        const result = await fileReadAgent(command);
+        return { success: true, action: "file.read", message: result };
+      }
+
+      // Summarize / answer questions about a document
+      if (
+        /\b(summarize|summarise|summary|saransh|padhke batao|ke baare mein batao)\b/.test(lowerCmd) ||
+        /\b(explain|samjhao|batao)\b.*\b(file|document|pdf|doc)\b/.test(lowerCmd)
+      ) {
+        const { fileSummarizeAgent } = await import("../agents/fileSummarizeAgent");
+        const result = await fileSummarizeAgent(command, command, lang);
+        return { success: true, action: "file.summarize", message: result };
+      }
+
+      // Default: search
       const result = await fileSearchAgent(command, lang);
       return { success: true, action: "file.search", message: result };
     }

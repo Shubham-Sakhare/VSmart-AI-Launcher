@@ -40,11 +40,26 @@ const STATE_CONFIG: Record<AssistantState, {
 };
 
 export default function JarvisOrb({ state, micLevel = 0, size = 120, onClick }: JarvisOrbProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const frameRef  = useRef(0);
-  const angleRef  = useRef(0);
+  const canvasRef  = useRef<HTMLCanvasElement>(null);
+  const micRingRef = useRef<HTMLDivElement>(null);
+  const frameRef   = useRef(0);
+  const angleRef   = useRef(0);
 
   const cfg = STATE_CONFIG[state] ?? STATE_CONFIG.IDLE;
+
+  // ── Mic level ring (shows voice activity visually) ────────────────────────
+  useEffect(() => {
+    const ring = micRingRef.current;
+    if (!ring) return;
+    if (state === "LISTENING" && micLevel > 0.05) {
+      const scale = 1 + micLevel * 0.7;
+      ring.style.width   = `${size * scale}px`;
+      ring.style.height  = `${size * scale}px`;
+      ring.style.opacity = String(Math.min(0.9, micLevel * 2));
+    } else {
+      ring.style.opacity = "0";
+    }
+  }, [micLevel, state, size]);
 
   // ── Canvas wave animation for SPEAKING and LISTENING ─────────────────────
   useEffect(() => {
@@ -127,6 +142,13 @@ export default function JarvisOrb({ state, micLevel = 0, size = 120, onClick }: 
       role="button"
       aria-label={`AI Assistant — ${cfg.label}`}
     >
+      {/* Mic level ring — grows with voice input */}
+      <div
+        ref={micRingRef}
+        className="orb-mic-ring"
+        style={{ width: size, height: size }}
+      />
+
       {/* Outer glow ring */}
       <div className="orb-ring orb-ring-outer" />
       <div className="orb-ring orb-ring-mid"   />
@@ -136,7 +158,7 @@ export default function JarvisOrb({ state, micLevel = 0, size = 120, onClick }: 
         {/* Canvas for dynamic wave/arc overlay */}
         <canvas ref={canvasRef} className="orb-canvas" />
 
-        {/* IRIS logo / initials */}
+        {/* VSmart icon */}
         <div className="orb-inner-icon">
           <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
             <circle cx="20" cy="20" r="8" stroke="currentColor" strokeWidth="1.5" opacity="0.9"/>
