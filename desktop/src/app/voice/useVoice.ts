@@ -126,11 +126,12 @@ export function useVoice({
   const inConvRef        = useRef(false);
   const convTimerRef     = useRef<ReturnType<typeof setTimeout> | null>(null);
   const bargeInOnlyRef   = useRef(false);
+  const manualStartRef   = useRef(false);  // true when user pressed mic button (not auto-wake)
   const bargedInRef      = useRef(false);
 
   // ── Forward ref for finalizeAndDispatch (avoids stale closure) ──────────
   const finalizeRef      = useRef<() => void>(() => {});
-  const startRef         = useRef<(opts?: { bargeInOnly?: boolean }) => void>(() => {});
+  const startRef         = useRef<(opts?: { bargeInOnly?: boolean; isWakeRestart?: boolean }) => void>(() => {});
 
   // ── Open conversation window ─────────────────────────────────────────────
   const openConvWindow = useCallback(() => {
@@ -183,7 +184,7 @@ export function useVoice({
     stopCapture();
 
     if ((wasBargeOnly && !didBargeIn) || !longEnough) {
-      if (wakeEnabledRef.current) setTimeout(() => startRef.current(), WAKE_RESTART_MS);
+      if (wakeEnabledRef.current) setTimeout(() => startRef.current({ isWakeRestart: true }), WAKE_RESTART_MS);
       return;
     }
 
@@ -215,8 +216,13 @@ export function useVoice({
         // Wake word only — greet and open window
         speak(greeting(isHi), lang);
         openConvWindow();
-      } else if (didBargeIn || hasWake || inConvRef.current || !wakeEnabledRef.current) {
-        // Real command — play filler immediately so there's no silent gap
+      } else if (didBargeIn || hasWake || inConvRef.current || !wakeEnabledRef.current || manualStartRef.current) {
+        // Real command:
+        //   - barge-in: user interrupted AI speech
+        //   - wake word present: user said "Hey VSmart"
+        //   - conversation window open: natural follow-up
+        //   - wake mode OFF: every mic session is a direct command
+        //   - manual mic press: user explicitly started listening (always dispatch)
         speak(filler(lang), lang);
         onCommandRef.current(afterWake || transcript);
         openConvWindow();
@@ -246,22 +252,25 @@ export function useVoice({
       }
     }
 
-    if (wakeEnabledRef.current) setTimeout(() => startRef.current(), WAKE_RESTART_MS);
+    if (wakeEnabledRef.current) setTimeout(() => startRef.current({ isWakeRestart: true }), WAKE_RESTART_MS);
   }, [lang, stopCapture, openConvWindow]);
 
   finalizeRef.current = () => { void finalizeAndDispatch(); };
 
   // ── Start listening ───────────────────────────────────────────────────────
-  const startListening = useCallback(async (opts?: { bargeInOnly?: boolean }) => {
+  const startListening = useCallback(async (opts?: { bargeInOnly?: boolean; isWakeRestart?: boolean }) => {
     if (listening) return;
 
     const isBargeOnly = !!opts?.bargeInOnly;
     bargeInOnlyRef.current = isBargeOnly;
     bargedInRef.current    = false;
     speechMsRef.current    = 0;
+    // Track whether this was a manual press (not auto wake-word restart).
+    // Manual sessions ALWAYS dispatch the command regardless of conv window.
+    manualStartRef.current = !opts?.isWakeRestart;
 
     if (!isBargeOnly && isSpeaking()) {
-      if (wakeEnabledRef.current) setTimeout(() => startRef.current(), 800);
+      if (wakeEnabledRef.current) setTimeout(() => startRef.current({ isWakeRestart: true }), 800);
       else setErrorMsg("Wait, I'm still talking…");
       return;
     }

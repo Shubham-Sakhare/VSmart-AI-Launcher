@@ -40,13 +40,35 @@ callback(false);
 }
 );
 
-// Content-Security-Policy - silences Electron's "Insecure CSP" dev warning
-// and is genuinely tighter security for the packaged app. Dev mode needs a
-// slightly looser policy (Vite's dev server + HMR websocket); production
-// gets a strict one with no remote script/style sources at all.
-const csp=app.isPackaged
-?"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' https://openrouter.ai http://localhost:11434 https://api.duckduckgo.com https://html.duckduckgo.com; media-src 'self' data: blob:; object-src 'none'; base-uri 'self';"
-:"default-src 'self' http://localhost:5173 ws://localhost:5173; script-src 'self' http://localhost:5173 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline' http://localhost:5173; img-src 'self' data: http://localhost:5173; font-src 'self' data:; connect-src 'self' http://localhost:5173 ws://localhost:5173 https://openrouter.ai http://localhost:11434 https://api.duckduckgo.com https://html.duckduckgo.com; media-src 'self' data: blob:; object-src 'none';";
+// Content-Security-Policy
+// Dev mode: looser policy so Vite HMR, Ollama (localhost:11434), OpenRouter,
+//           and Edge TTS (speech.platform.bing.com) all work without errors.
+// Prod mode: tight policy — only known origins, no eval.
+const DEV_CSP = [
+  "default-src 'self' http://localhost:5173 ws://localhost:5173",
+  "script-src 'self' http://localhost:5173 'unsafe-eval' 'unsafe-inline'",
+  "style-src 'self' 'unsafe-inline' http://localhost:5173",
+  "img-src 'self' data: blob: http://localhost:5173",
+  "font-src 'self' data: http://localhost:5173",
+  // All outbound API/service connections explicitly listed
+  "connect-src 'self' http://localhost:5173 ws://localhost:5173 http://localhost:11434 https://openrouter.ai https://api.duckduckgo.com https://html.duckduckgo.com https://speech.platform.bing.com wss://speech.platform.bing.com",
+  "media-src 'self' data: blob:",
+  "object-src 'none'",
+].join("; ");
+
+const PROD_CSP = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob:",
+  "font-src 'self' data:",
+  "connect-src 'self' http://localhost:11434 https://openrouter.ai https://api.duckduckgo.com https://html.duckduckgo.com https://speech.platform.bing.com wss://speech.platform.bing.com",
+  "media-src 'self' data: blob:",
+  "object-src 'none'",
+  "base-uri 'self'",
+].join("; ");
+
+const csp = app.isPackaged ? PROD_CSP : DEV_CSP;
 
 session.defaultSession.webRequest.onHeadersReceived((details,callback)=>{
 callback({
