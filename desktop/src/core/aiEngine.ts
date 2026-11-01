@@ -1,61 +1,75 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// Two separate AI entry points — clearly separated by purpose:
+// JARVIS/IRIS - AI Engine (Updated)
 //
-//   askSmartChat()  — VSmart Chat (VSmartAIPage)
-//                     Pure LLM streaming, ChatGPT-style, no tools, no TTS.
-//                     User sees tokens appear live as they arrive.
+// Two entry points:
+//   askSmartChat()  — Streaming chat with JARVIS persona (JarvisPage)
+//   askVoiceAgent() — Agentic tool-calling loop (voice commands)
 //
-//   askVoiceAgent() — VSmart Voice (ChatWidget + mic)
-//                     Agentic tool-calling loop, executes real system actions,
-//                     speaks replies via TTS. Natural Hindi/English assistant.
+// Both now use the unified LLM provider that tries Ollama first,
+// then falls back to OpenRouter — so ₹0 cost when Ollama is running.
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { agenticRoute } from "../ai/agenticRouter";
 import {
-  streamWithFallback, callWithFallback, getApiKey, langRule,
-  CHAT_MODELS, type ApiMessage, type ReplyLang, type ChatHistoryMessage,
+  streamChat, callChat,
+  type ApiMessage, type ReplyLang, type ChatHistoryMessage,
+} from "../llm/llmProvider";
+import {
+  streamWithFallback, callWithFallback, getApiKey,
+  CHAT_MODELS, langRule,
 } from "../llm/openrouter";
+import { buildSystemPrompt } from "./persona";
+import { useAppStore } from "../store/appStore";
 import type { RouteResult } from "../ai/router";
 
-// ── VSmart Chat ───────────────────────────────────────────────────────────────
-// Pure streaming LLM. Calls onChunk with each token delta so the UI can render
-// tokens live (like ChatGPT). Returns the full assembled reply when done.
-// No tools, no TTS, no agentic loop.
+// ── JARVIS Chat (streaming) ───────────────────────────────────────────────────
+// Used by JarvisPage for the streaming ChatGPT-style experience.
+// Uses the JARVIS persona system prompt and the unified LLM provider.
 export async function askSmartChat(
-  prompt: string,
-  lang: ReplyLang = "en",
+  prompt:  string,
+  lang:    ReplyLang = "en",
   history: ChatHistoryMessage[] = [],
   onChunk: (delta: string, accumulated: string) => void
 ): Promise<string> {
-  const apiKey = await getApiKey();
+  const { persona } = useAppStore.getState();
 
-  const systemPrompt =
-    `You are VSmart AI — a highly intelligent AI assistant like ChatGPT. ` +
-    `You are helpful, honest, and thorough. Answer clearly and completely. ` +
-    `For code, use proper markdown code blocks. ` +
-    langRule(lang);
+  // Get memory facts for context
+  let memFacts = "";
+  try {
+    const facts = await window.vsmart.longMemory.searchFacts(prompt, 5);
+    if (facts?.length) {
+      memFacts = facts.map((f: { key: string; value: string }) => `• ${f.key}: ${f.value}`).join("\n");
+    }
+  } catch { /* non-fatal */ }
+
+  const systemPrompt = buildSystemPrompt(persona, lang, memFacts);
 
   const messages: ApiMessage[] = [
     { role: "system", content: systemPrompt },
-    ...history.slice(-12).map(h => ({ role: h.role, content: h.content })),
+    ...history.slice(-12).map(h => ({ role: h.role as "user" | "assistant", content: h.content })),
     { role: "user", content: prompt },
   ];
 
-  return streamWithFallback(apiKey, CHAT_MODELS, messages, onChunk, 2048);
+  // Try unified provider (Ollama → OpenRouter)
+  try {
+    return await streamChat(messages, onChunk, 2048);
+  } catch (e) {
+    // Last resort: direct OpenRouter
+    const apiKey = await getApiKey();
+    return streamWithFallback(apiKey, CHAT_MODELS, messages, onChunk, 2048);
+  }
 }
 
-// ── VSmart Voice Agent ────────────────────────────────────────────────────────
-// Agentic tool-calling loop for voice and chat widget commands.
-// Opens apps, writes code, controls system, answers questions — and speaks back.
+// ── JARVIS Voice Agent (agentic tool loop) ────────────────────────────────────
+// Used by MainLayout/ChatWidget for voice commands that execute real actions.
 export async function askVoiceAgent(
-  input: string,
-  lang: ReplyLang = "en",
+  input:   string,
+  lang:    ReplyLang = "en",
   history: ChatHistoryMessage[] = []
 ): Promise<RouteResult> {
   return agenticRoute(input, lang, history);
 }
 
-// ── Re-export for agents that still need direct LLM access ───────────────────
-// (codingAgent, factExtractorAgent, visionAgent use these)
-export { callWithFallback, getApiKey, CHAT_MODELS };
-export type { ReplyLang, ChatHistoryMessage };
+// ── Re-exports for agents that still need direct LLM access ──────────────────
+export { callWithFallback, getApiKey, CHAT_MODELS, callChat, streamChat };
+export type { ReplyLang, ChatHistoryMessage, ApiMessage };

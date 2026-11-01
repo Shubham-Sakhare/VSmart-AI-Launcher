@@ -174,3 +174,15 @@ export function renderLiteMarkdown(text: string): ReactNode[] {
 
   return blocks;
 }
+
+interface MarkdownLiteProps {
+  text?: string;
+  content?: string;
+  children?: string;
+  className?: string;
+}
+
+export default function MarkdownLite({ text, content, children, className }: MarkdownLiteProps) {
+  const source = text ?? content ?? children ?? "";
+  return <div className={className}>{renderLiteMarkdown(source)}</div>;
+}

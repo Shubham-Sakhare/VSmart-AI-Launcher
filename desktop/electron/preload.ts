@@ -6,6 +6,42 @@ if (process.env.NODE_ENV !== "production") {
 
 contextBridge.exposeInMainWorld("vsmart",{
 
+// ── File Intelligence ──────────────────────────────────────────────────────
+fileIntelligence:{
+readFile:(filePath:string)=>
+ipcRenderer.invoke("fileintel:read",filePath),
+writeFile:(filePath:string,content:string)=>
+ipcRenderer.invoke("fileintel:write",filePath,content),
+listDir:(dirPath:string,maxDepth?:number)=>
+ipcRenderer.invoke("fileintel:listDir",dirPath,maxDepth),
+},
+
+// ── Browser Automation ─────────────────────────────────────────────────────
+browser:{
+automate:(task:{task:string;url?:string})=>
+ipcRenderer.invoke("browser:automate",task),
+close:()=>
+ipcRenderer.invoke("browser:close"),
+},
+
+// ── Scheduler ──────────────────────────────────────────────────────────────
+scheduler:{
+getAll:()=>
+ipcRenderer.invoke("scheduler:getAll"),
+create:(task:unknown)=>
+ipcRenderer.invoke("scheduler:create",task),
+delete:(id:string)=>
+ipcRenderer.invoke("scheduler:delete",id),
+toggle:(id:string,enabled:boolean)=>
+ipcRenderer.invoke("scheduler:toggle",id,enabled),
+onTaskFired:(callback:(task:{id:string;title:string;description:string;command:string})=>void)=>{
+const handler=(_:unknown,task:unknown)=>callback(task as {id:string;title:string;description:string;command:string});
+ipcRenderer.on("scheduler:task-fired",handler);
+return()=>ipcRenderer.removeListener("scheduler:task-fired",handler);
+},
+},
+
+
 minimize:()=>ipcRenderer.send("window-minimize"),
 
 maximize:()=>ipcRenderer.send("window-maximize"),

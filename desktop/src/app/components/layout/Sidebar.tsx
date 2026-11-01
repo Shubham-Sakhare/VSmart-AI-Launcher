@@ -4,11 +4,12 @@ import {
   Home,
   Grid3x3,
   FolderClosed,
-  Briefcase,
+  Bot,
+  Sparkles,
   TerminalSquare,
   Settings as SettingsIcon,
   PinOff,
-  Plus
+  Plus,
 } from "lucide-react";
 import type { Page } from "./MainLayout";
 import type { VoiceControls } from "../../voice/useVoice";
@@ -40,16 +41,16 @@ interface SidebarProps {
   onOpenSettings: () => void;
 }
 
-// Matches the reference UI exactly: Home / Apps / Files / Workspace /
-// Terminal / Settings. Each is mapped onto the closest existing app page
-// so the nav stays fully functional — only "Settings" opens the Settings
-// panel directly instead of navigating.
+// Main navigation items.
+// "VSmart AI" = JarvisPage (voice + agentic AI assistant, Jarvis-like).
+// "VSmart Chat" = VSmartAIPage (pure ChatGPT-style LLM conversation).
 const NAV_ITEMS: { page: Page; icon: React.ReactNode; label: string }[] = [
-  { page: "dashboard", icon: <Home size={19} />, label: "Home" },
-  { page: "agents", icon: <Grid3x3 size={19} />, label: "Apps" },
-  { page: "tasks", icon: <FolderClosed size={19} />, label: "Files" },
-  { page: "memory", icon: <Briefcase size={19} />, label: "VSmart Chat" },
-  { page: "tools", icon: <TerminalSquare size={19} />, label: "Terminal" }
+  { page: "dashboard",  icon: <Home size={19} />,          label: "Home"        },
+  { page: "jarvis",     icon: <Bot size={19} />,            label: "VSmart AI"   },
+  { page: "vsmartchat", icon: <Sparkles size={19} />,       label: "VSmart Chat" },
+  { page: "agents",     icon: <Grid3x3 size={19} />,        label: "Apps"        },
+  { page: "tasks",      icon: <FolderClosed size={19} />,   label: "Files"       },
+  { page: "tools",      icon: <TerminalSquare size={19} />, label: "Terminal"    },
 ];
 
 export default function Sidebar({
@@ -143,7 +144,9 @@ export default function Sidebar({
   return (
     <aside className="sidebar">
       <div className="logo">
-        <div className="logo-circle">V</div>
+        <div className="logo-circle">
+          <img src="/vsmart-logo.svg" alt="VSmart" className="logo-img" />
+        </div>
         <div>
           <h2>VSmartOS</h2>
           <span>V-IND | Built for the Future</span>

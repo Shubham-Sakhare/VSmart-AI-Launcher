@@ -15,9 +15,13 @@ import{registerVisionIPC}from"./ipc/vision.js";
 import{registerFileSearchIPC}from"./ipc/fileSearch.js";
 import{registerDesktopControlIPC}from"./ipc/desktopControl.js";
 import{registerProjectIPC}from"./ipc/project.js";
+import{registerBrowserIPC}from"./ipc/browser.js";
+import{registerFileIntelligenceIPC}from"./ipc/fileIntelligence.js";
+import{registerSchedulerIPC}from"./ipc/scheduler.js";
 import{initWhisper}from"./services/whisperService.js";
 import{promptLaunchPreferenceIfNeeded}from"./services/launchPreference.js";
 import{registerLaunchPrefIPC}from"./ipc/launchPref.js";
+import{initScheduler}from"./services/schedulerService.js";
 
 let mainWindow:BrowserWindow|null=null;
 
@@ -38,8 +42,8 @@ callback(false);
 // slightly looser policy (Vite's dev server + HMR websocket); production
 // gets a strict one with no remote script/style sources at all.
 const csp=app.isPackaged
-?"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' https://openrouter.ai; media-src 'self' data: blob:; object-src 'none'; base-uri 'self';"
-:"default-src 'self' http://localhost:5173 ws://localhost:5173; script-src 'self' http://localhost:5173 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline' http://localhost:5173; img-src 'self' data: http://localhost:5173; font-src 'self' data:; connect-src 'self' http://localhost:5173 ws://localhost:5173 https://openrouter.ai; media-src 'self' data: blob:; object-src 'none';";
+?"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' https://openrouter.ai http://localhost:11434 https://api.duckduckgo.com https://html.duckduckgo.com; media-src 'self' data: blob:; object-src 'none'; base-uri 'self';"
+:"default-src 'self' http://localhost:5173 ws://localhost:5173; script-src 'self' http://localhost:5173 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline' http://localhost:5173; img-src 'self' data: http://localhost:5173; font-src 'self' data:; connect-src 'self' http://localhost:5173 ws://localhost:5173 https://openrouter.ai http://localhost:11434 https://api.duckduckgo.com https://html.duckduckgo.com; media-src 'self' data: blob:; object-src 'none';";
 
 session.defaultSession.webRequest.onHeadersReceived((details,callback)=>{
 callback({
@@ -64,6 +68,7 @@ promptLaunchPreferenceIfNeeded(mainWindow);
 
 setImmediate(()=>{
 initWhisper();
+initScheduler(()=>mainWindow);
 });
 
 registerWindowIPC(()=>mainWindow);
@@ -76,6 +81,9 @@ registerVisionIPC();
 registerFileSearchIPC();
 registerDesktopControlIPC();
 registerProjectIPC();
+registerBrowserIPC();
+registerFileIntelligenceIPC();
+registerSchedulerIPC();
 
 ipcMain.handle(
 "open-system",

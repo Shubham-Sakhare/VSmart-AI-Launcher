@@ -1,0 +1,170 @@
+/* ─────────────────────────────────────────────────────────────────────────── */
+/* JARVIS/IRIS Orb Styles                                                       */
+/* ─────────────────────────────────────────────────────────────────────────── */
+
+.jarvis-orb {
+  position:        relative;
+  display:         flex;
+  align-items:     center;
+  justify-content: center;
+  flex-shrink:     0;
+  user-select:     none;
+}
+
+/* ── Glow rings ─────────────────────────────────────────────────────────── */
+.orb-ring {
+  position:      absolute;
+  border-radius: 50%;
+  border:        1.5px solid var(--orb-color, #00d4ff);
+  opacity:       0.25;
+  pointer-events:none;
+}
+.orb-ring-outer {
+  width:  100%;
+  height: 100%;
+}
+.orb-ring-mid {
+  width:  80%;
+  height: 80%;
+  opacity: 0.18;
+}
+
+/* ── Core sphere ────────────────────────────────────────────────────────── */
+.orb-core {
+  position:        relative;
+  width:           65%;
+  height:          65%;
+  border-radius:   50%;
+  background:      radial-gradient(
+    circle at 35% 35%,
+    rgba(255,255,255,0.12) 0%,
+    var(--orb-color, #00d4ff) 30%,
+    rgba(0,0,0,0.6) 100%
+  );
+  box-shadow:
+    0 0 24px var(--orb-glow, rgba(0,212,255,0.4)),
+    inset 0 0 16px rgba(255,255,255,0.06);
+  display:         flex;
+  align-items:     center;
+  justify-content: center;
+  overflow:        hidden;
+  transition:      box-shadow 0.4s ease;
+}
+
+/* ── Canvas overlay ─────────────────────────────────────────────────────── */
+.orb-canvas {
+  position:  absolute;
+  top:       0;
+  left:      0;
+  width:     100%;
+  height:    100%;
+  opacity:   0.7;
+  mix-blend-mode: screen;
+}
+
+/* ── Inner icon ─────────────────────────────────────────────────────────── */
+.orb-inner-icon {
+  position: relative;
+  width:    45%;
+  height:   45%;
+  color:    var(--orb-color, #00d4ff);
+  filter:   drop-shadow(0 0 4px var(--orb-color, #00d4ff));
+  z-index:  2;
+}
+.orb-inner-icon svg { width: 100%; height: 100%; }
+
+/* ── State label ────────────────────────────────────────────────────────── */
+.orb-label {
+  position:   absolute;
+  bottom:     -22px;
+  left:       50%;
+  transform:  translateX(-50%);
+  font-size:  10px;
+  font-weight:600;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color:      var(--orb-color, #00d4ff);
+  opacity:    0.8;
+  white-space:nowrap;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────── */
+/* State Animations                                                             */
+/* ─────────────────────────────────────────────────────────────────────────── */
+
+/* IDLE — slow breathing pulse */
+@keyframes orb-breathe {
+  0%, 100% { transform: scale(1.00); opacity: 1; }
+  50%      { transform: scale(1.05); opacity: 0.85; }
+}
+.orb-idle .orb-core { animation: orb-breathe 3s ease-in-out infinite; }
+.orb-idle .orb-ring-outer { animation: orb-breathe 3s ease-in-out infinite reverse; }
+
+/* LISTENING — ripple rings */
+@keyframes orb-ripple {
+  0%   { transform: scale(0.8);  opacity: 0.8; }
+  100% { transform: scale(1.5);  opacity: 0; }
+}
+.orb-listening .orb-ring-outer {
+  animation: orb-ripple 1.2s ease-out infinite;
+}
+.orb-listening .orb-ring-mid {
+  animation: orb-ripple 1.2s ease-out 0.4s infinite;
+}
+.orb-listening .orb-core {
+  animation: orb-breathe 0.8s ease-in-out infinite;
+  box-shadow: 0 0 36px var(--orb-glow), inset 0 0 16px rgba(255,255,255,0.08);
+}
+
+/* THINKING — rotate */
+@keyframes orb-rotate {
+  to { transform: rotate(360deg); }
+}
+.orb-thinking .orb-ring-outer {
+  animation: orb-rotate 2s linear infinite;
+  border-style: dashed;
+}
+.orb-thinking .orb-ring-mid {
+  animation: orb-rotate 1.4s linear infinite reverse;
+  border-style: dotted;
+}
+
+/* PLANNING — multi-ring rotation */
+.orb-planning .orb-ring-outer {
+  animation: orb-rotate 1.8s linear infinite;
+}
+.orb-planning .orb-ring-mid {
+  animation: orb-rotate 1.2s linear infinite reverse;
+  border-color: #b44fff;
+}
+
+/* EXECUTING — fast pulse */
+@keyframes orb-execute-pulse {
+  0%, 100% { box-shadow: 0 0 20px var(--orb-glow); }
+  50%      { box-shadow: 0 0 50px var(--orb-glow), 0 0 80px var(--orb-glow); }
+}
+.orb-executing .orb-core { animation: orb-execute-pulse 0.6s ease-in-out infinite; }
+
+/* SPEAKING — audio pulse */
+@keyframes orb-speak-pulse {
+  0%, 100% { transform: scale(1);    box-shadow: 0 0 24px var(--orb-glow); }
+  25%      { transform: scale(1.08); box-shadow: 0 0 40px var(--orb-glow); }
+  75%      { transform: scale(0.96); box-shadow: 0 0 16px var(--orb-glow); }
+}
+.orb-speaking .orb-core { animation: orb-speak-pulse 0.5s ease-in-out infinite; }
+.orb-speaking .orb-ring-outer { animation: orb-ripple 1s ease-out infinite; }
+
+/* COMPLETED — flash green */
+@keyframes orb-done {
+  0%   { transform: scale(1.1); opacity: 1; }
+  50%  { transform: scale(1.0); opacity: 0.7; }
+  100% { transform: scale(1.1); opacity: 1; }
+}
+.orb-completed .orb-core { animation: orb-done 1.5s ease-in-out 3; }
+
+/* ERROR — red slow pulse */
+@keyframes orb-error-pulse {
+  0%, 100% { opacity: 0.6; }
+  50%      { opacity: 1.0; }
+}
+.orb-error .orb-core { animation: orb-error-pulse 1s ease-in-out infinite; }
