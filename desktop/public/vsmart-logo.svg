@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="none">
+  <defs>
+    <!-- Outer ring gradient: blue -> purple -> red -> orange -->
+    <linearGradient id="ring" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#00c6f5"/>
+      <stop offset="30%"  stop-color="#4040ff"/>
+      <stop offset="65%"  stop-color="#cc00cc"/>
+      <stop offset="100%" stop-color="#ff6600"/>
+    </linearGradient>
+    <!-- V letter gradient: cyan -> blue -->
+    <linearGradient id="vgrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#00d4ff"/>
+      <stop offset="50%"  stop-color="#3060ff"/>
+      <stop offset="100%" stop-color="#0044cc"/>
+    </linearGradient>
+    <!-- V inner highlight: warm orange/gold -->
+    <linearGradient id="vwarm" x1="30%" y1="0%" x2="70%" y2="100%">
+      <stop offset="0%"   stop-color="#ffcc00"/>
+      <stop offset="100%" stop-color="#ff6600"/>
+    </linearGradient>
+    <!-- Orbit ring gradient -->
+    <linearGradient id="orbit" x1="0%" y1="50%" x2="100%" y2="50%">
+      <stop offset="0%"   stop-color="#00c6f5" stop-opacity="0.9"/>
+      <stop offset="50%"  stop-color="#b44fff" stop-opacity="0.7"/>
+      <stop offset="100%" stop-color="#ff6600" stop-opacity="0.9"/>
+    </linearGradient>
+    <!-- Glow filter -->
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="softglow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="5" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Outer circular ring -->
+  <circle cx="60" cy="60" r="54" stroke="url(#ring)" stroke-width="4.5" fill="none" filter="url(#glow)"/>
+
+  <!-- Diagonal orbit ellipse -->
+  <ellipse cx="60" cy="60" rx="52" ry="16"
+    stroke="url(#orbit)" stroke-width="3" fill="none"
+    transform="rotate(-30 60 60)"
+    filter="url(#glow)"
+    stroke-dasharray="1 0"
+  />
+
+  <!-- V letter — left stroke (blue side) -->
+  <path d="M28 28 L60 82 L60 72 L38 28 Z"
+    fill="url(#vgrad)" filter="url(#glow)"/>
+
+  <!-- V letter — right stroke (warm side) -->
+  <path d="M92 28 L60 82 L60 72 L82 28 Z"
+    fill="url(#vwarm)" filter="url(#glow)"/>
+
+  <!-- V inner highlight/shine -->
+  <path d="M60 72 L56 64 L60 82 L64 64 Z"
+    fill="white" opacity="0.45"/>
+
+  <!-- Left top chamfer shine -->
+  <path d="M28 28 L38 28 L42 36 L31 36 Z"
+    fill="white" opacity="0.25"/>
+
+  <!-- Orbit ball/dot -->
+  <circle cx="108" cy="44" r="6"
+    fill="url(#vgrad)" filter="url(#softglow)"
+    stroke="white" stroke-width="1.5" stroke-opacity="0.6"/>
+</svg>

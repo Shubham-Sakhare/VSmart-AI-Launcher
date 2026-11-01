@@ -1,7 +1,10 @@
 .sidebar{
 
 width:280px;
-height:100vh;
+/* Do NOT use height:100vh — sidebar must fill layout-row exactly,
+   not overflow into the topbar area or get cut at the bottom.
+   align-items:stretch on layout-row handles this automatically. */
+height: 100%;
 
 display:flex;
 flex-direction:column;
@@ -24,6 +27,11 @@ align-items:center;
 gap:15px;
 
 margin-bottom:35px;
+
+/* Pin logo to the top-left corner of the sidebar */
+align-self:flex-start;
+padding:0;
+margin-top:0;
 
 }
 
@@ -255,7 +263,7 @@ color:var(--text-dim);
 
 cursor:pointer;
 
-transition:.35s;
+transition:.25s;
 
 font-size:15px;
 
@@ -263,21 +271,25 @@ font-size:15px;
 
 .menu-item:hover{
 
-background:var(--bg-panel);
+background:rgba(255,255,255,0.06);
 
-transform:translateX(6px);
+transform:none;
 
-box-shadow:0 0 20px rgba(var(--accent-rgb), .2);
+box-shadow:none;
+
+color:rgba(255,255,255,0.85);
 
 }
 
 .menu-item.active{
 
-background:linear-gradient(90deg,var(--accent)33,var(--accent-2)33);
+background:linear-gradient(90deg,rgba(110,168,255,0.22),rgba(176,108,255,0.14));
 
-border:1px solid var(--accent);
+border:1px solid rgba(110,168,255,0.35);
 
-box-shadow:0 0 20px rgba(var(--accent-rgb), .35);
+color: #fff;
+
+box-shadow:0 2px 18px rgba(110,168,255, .22), 0 0 0 1px rgba(110,168,255,.12) inset;
 
 }
 
@@ -373,6 +385,7 @@ border:none;
   --accent-2-rgb: 176, 108, 255;
 
   width: 264px;
+  /* height: 100% already set above — do NOT add height:100vh here */
   padding: 18px 16px;
   gap: 0;
   background:

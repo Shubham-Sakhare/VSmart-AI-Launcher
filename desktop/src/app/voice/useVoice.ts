@@ -57,15 +57,15 @@ const filler = (lang: string) => {
 function greeting(hi: boolean): string {
   const h = new Date().getHours();
   if (hi) {
-    if (h >= 5 && h < 12)  return "सुप्रभात बॉस, क्या काम है?";
-    if (h >= 12 && h < 17) return "नमस्ते बॉस, क्या काम है?";
-    if (h >= 17 && h < 21) return "शुभ संध्या बॉस, क्या काम है?";
-    return "नमस्ते बॉस, क्या काम है?";
+    if (h >= 5  && h < 12) return "सुबह का नमस्ते! बताओ क्या करना है?";
+    if (h >= 12 && h < 17) return "हाँ, बताओ — क्या मदद चाहिए?";
+    if (h >= 17 && h < 21) return "शाम को नमस्ते! क्या काम है?";
+    return "हाँ, बोलो — सुन रहा हूँ।";
   }
-  if (h >= 5 && h < 12)  return "Good Morning Boss, how can I help?";
-  if (h >= 12 && h < 17) return "Good Afternoon Boss, how can I help?";
-  if (h >= 17 && h < 21) return "Good Evening Boss, how can I help?";
-  return "Good Night Boss, how can I help?";
+  if (h >= 5  && h < 12) return "Good morning! What can I do for you?";
+  if (h >= 12 && h < 17) return "Hey! How can I help?";
+  if (h >= 17 && h < 21) return "Good evening! What do you need?";
+  return "Hey, I'm listening — go ahead.";
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────

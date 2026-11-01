@@ -11,7 +11,7 @@
 // path via askSmartChat() for ChatGPT-style conversation.
 // ═══════════════════════════════════════════════════════════════════════════
 
-import { callWithFallback, getApiKey, langRule, CHAT_MODELS, type ApiMessage, type ReplyLang, type ChatHistoryMessage } from "../llm/openrouter";
+import { callWithFallback, getApiKey, CHAT_MODELS, type ApiMessage, type ReplyLang, type ChatHistoryMessage } from "../llm/openrouter";
 import { toolListForPrompt, executeTool } from "./tools";
 import type { RouteResult } from "./router";
 
@@ -123,31 +123,38 @@ async function savePreference(text: string): Promise<void> {
 
 // ── System prompt for LLM agentic calls ──────────────────────────────────────
 function buildPrompt(lang: ReplyLang, mem: string): string {
-  return `You are VSmart AI — a Jarvis/IRIS-like desktop assistant on Windows. You are NOT a chatbot. You actually execute real actions.
+  const langInstr = lang === "hi"
+    ? "Hindi mein baat karo (Devanagari), natural aur conversational. English tech terms mix kar sakte ho."
+    : "Hinglish mein baat karo — jaise real urban Indians bolte hain. Roman script. Natural, friendly, NOT robotic.";
+
+  return `Tu VSmart AI hai — ek intelligent Indian desktop assistant. Tu sirf chatbot nahi hai, tu actually real system actions leta hai Windows PC par.
 
 TOOLS AVAILABLE:
 ${toolListForPrompt()}
 
-RESPONSE FORMAT — CRITICAL:
-Reply with ONLY a single valid JSON object. No text before or after. No markdown.
+RESPONSE FORMAT — ZARURI:
+Sirf ek valid JSON object return karo. Pehle ya baad mein koi text nahi. No markdown.
 {"tool":"<name>","args":{...}}
 
-HOW TO PICK A TOOL:
-- Open app/website/folder → system_action, command="open <name>"
+TOOL SELECTION GUIDE:
+- App/website/folder kholna → system_action, command="open <name>"
 - Volume/brightness/wifi/bluetooth/screenshot/media → system_action
-- Write/fix/create code or project → coding_task
-- Find a file → file_search
-- Click/type/keyboard → desktop_control
-- See screen → vision_analyze
-- Save/recall user facts → memory_save / memory_get
-- DANGEROUS (restart/shutdown/delete all) → request_confirmation first
-- Just answering / chatting → final_reply
+- Code likhna/fix karna/project banana → coding_task
+- File dhundhna → file_search
+- Click/type/keyboard control → desktop_control
+- Screen dekhna → vision_analyze
+- User ki baat yaad rakhna/yaad karna → memory_save / memory_get
+- DANGEROUS kaam (restart/shutdown/delete all) → pehle request_confirmation
+- Sirf baat karna/jawab dena → final_reply
 
-REPLY STYLE (for final_reply "message" field):
-- Short, spoken, natural. Like a real person talking.
-- Good: "Done Boss, Chrome khol diya." Bad: "I have successfully launched Chrome."
-- Max 2 sentences for simple tasks.
-- ${langRule(lang)}
+REPLY STYLE (final_reply ke "message" field ke liye):
+- Real Indian friend ki tarah bolo — warm, natural, conversational.
+- Kaam hua? Khushi se bolo: "Ho gaya!", "Haan, khol diya!", "Le liya screenshot!"
+- Kuch fail hua? Clearly bolo kya hua aur kya kare: "Yaar, yeh nahi mila — [reason]. Try karo [X]?"
+- Confirmation chahiye? Naturally pucho: "Ek second — pakka restart karein? Kaam ka data save hai na?"
+- Max 2 sentences for simple tasks. Complex tasks mein thoda zyada theek hai.
+- AVOID: "I have successfully completed", "Done, Boss." — robotic templates bilkul nahi.
+- ${langInstr}
 ${mem}`;
 }
 
@@ -169,23 +176,73 @@ function extractJson(raw: string): { tool: string; args: Record<string, unknown>
   return null;
 }
 
-// ── Natural reply composer ────────────────────────────────────────────────────
+// ── Natural reply composer — varied, human-sounding ──────────────────────────
+// Used only for the direct (no-LLM) fast path. Gives different responses
+// so the assistant never sounds like a broken record.
 function composeReply(tool: string, args: Record<string, unknown>, result: string, lang: ReplyLang): string {
-  const hi = lang === "hi";
+  const hi  = lang === "hi";
   const cmd = String(args?.command ?? args?.request ?? "").toLowerCase();
+
+  // If the tool returned an error, surface it directly — no sugar-coating
   if (/could not|couldn't|failed|error|not found/i.test(result)) return result;
+
   if (tool === "system_action") {
     if (/open|launch|start|khol/i.test(cmd)) {
-      const t = cmd.replace(/^open\s+/i,"").trim();
-      return hi ? `हो गया बॉस, ${t} खोल दिया।` : `Done Boss, opened ${t}.`;
+      const target = cmd.replace(/^open\s+/i, "").replace(/^kholo?\s+/i, "").trim();
+      const opens_hi = [
+        `Haan, ${target} khol diya!`,
+        `${target} open ho gaya.`,
+        `Lo, ${target} chalu kar diya.`,
+      ];
+      const opens_en = [
+        `Opened ${target}!`,
+        `There you go — ${target} is up.`,
+        `${target} launched!`,
+      ];
+      const pool = hi ? opens_hi : opens_en;
+      return pool[Math.floor(Math.random() * pool.length)];
     }
-    if (/screenshot/i.test(cmd)) return hi ? `स्क्रीनशॉट ले लिया बॉस।` : `Screenshot taken, Boss.`;
-    if (/volume|brightness/i.test(cmd)) return hi ? `हो गया बॉस।` : `Done Boss.`;
-    return hi ? `हो गया बॉस।` : `Done Boss.`;
+    if (/screenshot/i.test(cmd)) {
+      return hi ? `Screenshot le liya!` : `Screenshot taken!`;
+    }
+    if (/volume|awaaz/i.test(cmd)) {
+      return hi ? `Volume set kar diya.` : `Volume adjusted!`;
+    }
+    if (/brightness|chamak/i.test(cmd)) {
+      return hi ? `Brightness badal di.` : `Brightness updated!`;
+    }
+    if (/wifi|wi-fi/i.test(cmd)) {
+      return hi ? `WiFi update kar diya.` : `WiFi updated!`;
+    }
+    if (/bluetooth/i.test(cmd)) {
+      return hi ? `Bluetooth change kar diya.` : `Bluetooth updated!`;
+    }
+    if (/play|pause|next|skip/i.test(cmd)) {
+      return hi ? `Ho gaya.` : `Done!`;
+    }
+    // Generic system action
+    const generic_hi = [`Ho gaya!`, `Kar diya.`, `Done!`];
+    const generic_en = [`Done!`, `All set!`, `Got it, done.`];
+    const gp = hi ? generic_hi : generic_en;
+    return gp[Math.floor(Math.random() * gp.length)];
   }
-  if (tool === "coding_task")   return (hi ? `हो गया बॉस।\n\n` : `Done Boss.\n\n`) + result;
-  if (tool === "desktop_control") return hi ? `कर दिया बॉस।` : `Done Boss.`;
-  return result;
+
+  if (tool === "coding_task") {
+    const prefix_hi = [`Ho gaya! Yeh dekho:\n\n`, `Likh diya:\n\n`, `Ready hai:\n\n`];
+    const prefix_en = [`Done! Here it is:\n\n`, `Written! Check it out:\n\n`, `Ready:\n\n`];
+    const pp = hi ? prefix_hi : prefix_en;
+    return pp[Math.floor(Math.random() * pp.length)] + result;
+  }
+
+  if (tool === "desktop_control") {
+    return hi ? `Kar diya!` : `Done!`;
+  }
+
+  if (tool === "file_search") {
+    return result || (hi ? `Koi file nahi mili.` : `No files found.`);
+  }
+
+  return result || (hi ? `Ho gaya.` : `Done.`);
 }
 
 // ── Main router ───────────────────────────────────────────────────────────────
@@ -196,9 +253,9 @@ export async function agenticRoute(
 ): Promise<RouteResult> {
 
   if (isBlocked(message)) {
-    return { success:false, action:"blocked", message: lang === "hi"
-      ? "माफ़ कीजिए बॉस, यह नहीं कर सकता।"
-      : "Sorry Boss, can't help with that." };
+    return { success: false, action: "blocked", message: lang === "hi"
+      ? "Yeh nahi kar sakta — yeh content allowed nahi hai."
+      : "Sorry, can't help with that — it's not something I'm allowed to do." };
   }
 
   void savePreference(message);
@@ -211,11 +268,13 @@ export async function agenticRoute(
       const lo = message.toLowerCase();
       if (YES.some(w => lo.includes(w))) {
         const r = await executeTool(p.tool, p.args, lang);
-        return { success:true, action:`confirmed.${p.tool}`, message:r };
+        return { success: true, action: `confirmed.${p.tool}`, message: r };
       }
       if (NO.some(w => lo.includes(w))) {
-        return { success:true, action:"cancelled",
-          message: lang === "hi" ? "ठीक है, कैंसिल कर दिया।" : "Okay, cancelled." };
+        return { success: true, action: "cancelled",
+          message: lang === "hi"
+            ? "Theek hai, chhodta hoon. Koi aur kaam ho toh batao."
+            : "Alright, cancelled. Let me know if you need anything else." };
       }
     }
   }
@@ -224,9 +283,11 @@ export async function agenticRoute(
   const direct = tryDirectRoute(message);
   if (direct) {
     if (direct.tool === "system_action" && DESTRUCTIVE.test(String(direct.args?.command ?? ""))) {
-      pending = { tool:direct.tool, args:direct.args, at:Date.now() };
-      return { success:true, action:"confirm",
-        message: lang === "hi" ? "बॉस, पक्का? हां बोलें।" : "Are you sure, Boss? Say yes to confirm." };
+      pending = { tool: direct.tool, args: direct.args, at: Date.now() };
+      return { success: true, action: "confirm",
+        message: lang === "hi"
+          ? "Ruko — yeh kaam thoda bada hai. Pakka karna chahte ho? 'Haan' bolo toh karta hoon."
+          : "Hold on — this is a big action. Are you sure? Say yes and I'll do it." };
     }
     const r = await executeTool(direct.tool, direct.args, lang);
     return { success:true, action:"direct."+direct.tool, message: composeReply(direct.tool, direct.args, r, lang) };
@@ -258,21 +319,25 @@ export async function agenticRoute(
 
     // Model returned plain text — treat as final reply
     if (!dec) {
-      return { success:true, action:"reply", message:[...results,raw.trim()].filter(Boolean).join("\n\n") || "Ok Boss." };
+      return { success: true, action: "reply", message: [...results, raw.trim()].filter(Boolean).join("\n\n") || (lang === "hi" ? "Ho gaya." : "Done!") };
     }
     if (dec.tool === "final_reply") {
       const msg = [...results, String(dec.args?.message ?? "")].filter(Boolean).join("\n\n");
-      return { success:true, action:"reply", message: msg || "Ok Boss." };
+      return { success: true, action: "reply", message: msg || (lang === "hi" ? "Ho gaya." : "Done!") };
     }
     if (dec.tool === "request_confirmation") {
-      pending = { tool:String(dec.args?.onConfirmTool ?? ""), args:(dec.args?.onConfirmArgs as Record<string,unknown>) ?? {}, at:Date.now() };
-      return { success:true, action:"confirm",
-        message: String(dec.args?.question ?? (lang === "hi" ? "बॉस, पक्का?" : "Are you sure, Boss?")) };
+      pending = { tool: String(dec.args?.onConfirmTool ?? ""), args: (dec.args?.onConfirmArgs as Record<string, unknown>) ?? {}, at: Date.now() };
+      return { success: true, action: "confirm",
+        message: String(dec.args?.question ?? (lang === "hi"
+          ? "Pakka karna chahte ho? 'Haan' bolo."
+          : "Are you sure? Say yes and I'll proceed.")) };
     }
     if (dec.tool === "system_action" && DESTRUCTIVE.test(String(dec.args?.command ?? ""))) {
-      pending = { tool:"system_action", args:dec.args, at:Date.now() };
-      return { success:true, action:"confirm",
-        message: lang === "hi" ? "बॉस, पक्का? हां बोलें।" : "Sure, Boss? Say yes." };
+      pending = { tool: "system_action", args: dec.args, at: Date.now() };
+      return { success: true, action: "confirm",
+        message: lang === "hi"
+          ? "Ruko — yeh important action hai. Pakka? 'Haan' bolo."
+          : "Hold on — this is important. Are you sure? Say yes." };
     }
 
     const r = await executeTool(dec.tool, dec.args, lang);
@@ -280,6 +345,8 @@ export async function agenticRoute(
     turns.push({ role:"assistant", content:`(${dec.tool} result: ${r.slice(0,200)})` });
   }
 
-  return { success:results.length > 0, action:"reply",
-    message: results.join("\n\n") || (lang === "hi" ? "हो नहीं पाया बॉस।" : "Couldn't complete that, Boss.") };
+  return { success: results.length > 0, action: "reply",
+    message: results.join("\n\n") || (lang === "hi"
+      ? "Kuch nahi hua yaar — shayad connection issue hai. Phir try karo."
+      : "Something went wrong — maybe a connection issue. Please try again.") };
 }

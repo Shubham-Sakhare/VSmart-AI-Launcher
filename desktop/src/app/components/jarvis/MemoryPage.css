@@ -1,0 +1,282 @@
+/* ─────────────────────────────────────────────────────────────────────────── */
+/* Memory Page Styles                                                            */
+/* ─────────────────────────────────────────────────────────────────────────── */
+
+.memory-page {
+  display:        flex;
+  flex-direction: column;
+  height:         100%;
+  background:     #0a0c12;
+  color:          #e8e8e8;
+  overflow:       hidden;
+}
+
+/* ── Header ──────────────────────────────────────────────────────────────── */
+.memory-header {
+  display:         flex;
+  align-items:     center;
+  justify-content: space-between;
+  padding:         16px 20px;
+  border-bottom:   1px solid rgba(255,255,255,0.07);
+  flex-shrink:     0;
+}
+.memory-title {
+  display:     flex;
+  align-items: center;
+  gap:         10px;
+  font-size:   17px;
+  font-weight: 700;
+  color:       #e8e8e8;
+}
+.memory-count {
+  font-size:     11px;
+  font-weight:   600;
+  background:    rgba(0,212,255,0.12);
+  color:         #00d4ff;
+  border:        1px solid rgba(0,212,255,0.25);
+  border-radius: 10px;
+  padding:       2px 8px;
+}
+.memory-header-actions { display: flex; gap: 8px; }
+
+/* ── Buttons ─────────────────────────────────────────────────────────────── */
+.mem-btn {
+  display:       flex;
+  align-items:   center;
+  gap:           6px;
+  padding:       6px 12px;
+  border:        1px solid;
+  border-radius: 7px;
+  font-size:     12px;
+  font-weight:   600;
+  cursor:        pointer;
+  transition:    background 0.2s, color 0.2s;
+  white-space:   nowrap;
+}
+.mem-btn.secondary {
+  background:   rgba(255,255,255,0.04);
+  border-color: rgba(255,255,255,0.12);
+  color:        rgba(255,255,255,0.55);
+}
+.mem-btn.secondary:hover { background: rgba(255,255,255,0.08); color: #e8e8e8; }
+
+.mem-btn.add {
+  background:   rgba(0,212,255,0.08);
+  border-color: rgba(0,212,255,0.25);
+  color:        #00d4ff;
+}
+.mem-btn.add:hover { background: rgba(0,212,255,0.15); }
+
+.mem-btn.danger {
+  background:   rgba(255,59,48,0.07);
+  border-color: rgba(255,59,48,0.20);
+  color:        rgba(255,59,48,0.7);
+}
+.mem-btn.danger:hover, .mem-btn.danger.confirm {
+  background:   rgba(255,59,48,0.15);
+  border-color: rgba(255,59,48,0.45);
+  color:        #ff3b30;
+}
+
+/* ── Add form ────────────────────────────────────────────────────────────── */
+.memory-add-form {
+  display:        flex;
+  flex-direction: column;
+  gap:            8px;
+  padding:        14px 20px;
+  background:     rgba(0,212,255,0.04);
+  border-bottom:  1px solid rgba(0,212,255,0.12);
+  flex-shrink:    0;
+}
+.mem-add-actions { display: flex; gap: 8px; }
+
+/* ── Inputs ──────────────────────────────────────────────────────────────── */
+.mem-input {
+  background:    rgba(255,255,255,0.05);
+  border:        1px solid rgba(255,255,255,0.10);
+  border-radius: 7px;
+  padding:       8px 12px;
+  color:         #e8e8e8;
+  font-size:     12.5px;
+  outline:       none;
+  font-family:   inherit;
+  transition:    border-color 0.2s;
+}
+.mem-input:focus { border-color: rgba(0,212,255,0.35); }
+.mem-input::placeholder { color: rgba(255,255,255,0.25); }
+.edit-input { width: 100%; }
+
+/* ── Filters ─────────────────────────────────────────────────────────────── */
+.memory-filters {
+  padding:    12px 20px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  display:    flex;
+  flex-direction: column;
+  gap:        10px;
+  flex-shrink:0;
+}
+.memory-search-wrap {
+  position:    relative;
+  display:     flex;
+  align-items: center;
+}
+.search-icon {
+  position: absolute;
+  left:     10px;
+  color:    rgba(255,255,255,0.3);
+}
+.memory-search {
+  width:         100%;
+  padding:       8px 12px 8px 32px;
+  background:    rgba(255,255,255,0.05);
+  border:        1px solid rgba(255,255,255,0.10);
+  border-radius: 8px;
+  color:         #e8e8e8;
+  font-size:     12.5px;
+  outline:       none;
+  font-family:   inherit;
+  transition:    border-color 0.2s;
+}
+.memory-search:focus { border-color: rgba(0,212,255,0.35); }
+.memory-search::placeholder { color: rgba(255,255,255,0.25); }
+.search-clear {
+  position:   absolute;
+  right:      8px;
+  background: transparent;
+  border:     none;
+  color:      rgba(255,255,255,0.35);
+  cursor:     pointer;
+  padding:    2px;
+}
+
+.memory-cats {
+  display:  flex;
+  gap:      6px;
+  flex-wrap:wrap;
+}
+.mem-cat {
+  display:       flex;
+  align-items:   center;
+  gap:           5px;
+  padding:       4px 10px;
+  background:    rgba(255,255,255,0.04);
+  border:        1px solid rgba(255,255,255,0.08);
+  border-radius: 20px;
+  font-size:     11px;
+  color:         rgba(255,255,255,0.45);
+  cursor:        pointer;
+  transition:    all 0.2s;
+}
+.mem-cat:hover { background: rgba(255,255,255,0.08); color: #e8e8e8; }
+.mem-cat.active {
+  background:   rgba(0,212,255,0.10);
+  border-color: rgba(0,212,255,0.30);
+  color:        #00d4ff;
+}
+
+/* ── Facts grid ──────────────────────────────────────────────────────────── */
+.memory-grid {
+  flex:       1;
+  overflow-y: auto;
+  padding:    16px 20px;
+  display:    grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap:        12px;
+  align-content: flex-start;
+}
+
+.memory-loading, .memory-empty {
+  grid-column:     1 / -1;
+  display:         flex;
+  flex-direction:  column;
+  align-items:     center;
+  gap:             12px;
+  padding:         48px;
+  color:           rgba(255,255,255,0.25);
+  font-size:       13px;
+}
+.memory-empty-sub { font-size: 11.5px; color: rgba(255,255,255,0.18); text-align: center; }
+
+/* ── Memory card ─────────────────────────────────────────────────────────── */
+.memory-card {
+  background:    rgba(255,255,255,0.04);
+  border:        1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+  padding:       12px 14px;
+  display:       flex;
+  flex-direction:column;
+  gap:           8px;
+  transition:    border-color 0.2s, background 0.2s;
+}
+.memory-card:hover {
+  background:    rgba(255,255,255,0.06);
+  border-color:  rgba(255,255,255,0.14);
+}
+
+.memory-card-header { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.memory-key {
+  display:     flex;
+  align-items: center;
+  gap:         5px;
+  font-size:   11.5px;
+  font-weight: 600;
+  color:       rgba(255,255,255,0.55);
+  font-family: 'Courier New', monospace;
+  overflow:    hidden;
+  text-overflow:ellipsis;
+  white-space: nowrap;
+}
+
+.memory-cat-badge {
+  display:       flex;
+  align-items:   center;
+  gap:           4px;
+  font-size:     9.5px;
+  padding:       2px 8px;
+  border-radius: 10px;
+  flex-shrink:   0;
+  font-weight:   600;
+  text-transform:capitalize;
+}
+.cat-preference { background: rgba(180,79,255,0.12); color: rgba(180,79,255,0.8);  border: 1px solid rgba(180,79,255,0.20); }
+.cat-personal   { background: rgba(0,212,255,0.10);  color: rgba(0,212,255,0.8);   border: 1px solid rgba(0,212,255,0.20); }
+.cat-work       { background: rgba(255,149,0,0.10);  color: rgba(255,149,0,0.8);   border: 1px solid rgba(255,149,0,0.20); }
+.cat-reminder   { background: rgba(255,220,0,0.10);  color: rgba(255,220,0,0.8);   border: 1px solid rgba(255,220,0,0.20); }
+.cat-general    { background: rgba(255,255,255,0.06);color: rgba(255,255,255,0.5); border: 1px solid rgba(255,255,255,0.10);}
+
+.memory-value {
+  font-size:  13px;
+  color:      #e8e8e8;
+  line-height:1.5;
+  margin:     0;
+  word-break: break-word;
+}
+
+.memory-edit-row { display: flex; flex-direction: column; gap: 6px; }
+.memory-edit-actions { display: flex; gap: 6px; }
+
+.memory-card-footer {
+  display:         flex;
+  align-items:     center;
+  justify-content: space-between;
+  margin-top:      auto;
+}
+.memory-date    { font-size: 10px; color: rgba(255,255,255,0.2); }
+.memory-card-actions { display: flex; gap: 4px; }
+
+.mem-icon-btn {
+  background:    transparent;
+  border:        none;
+  color:         rgba(255,255,255,0.25);
+  cursor:        pointer;
+  padding:       4px;
+  border-radius: 4px;
+  display:       flex;
+  align-items:   center;
+  transition:    color 0.2s, background 0.2s;
+}
+.mem-icon-btn:hover       { color: #e8e8e8; background: rgba(255,255,255,0.06); }
+.mem-icon-btn.danger:hover{ color: #ff3b30; background: rgba(255,59,48,0.08); }
+
+.spin { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }

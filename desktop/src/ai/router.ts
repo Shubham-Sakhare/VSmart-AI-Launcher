@@ -6,7 +6,12 @@ import { codingAgent } from "../agents/codingAgent";
 import { visionAgent } from "../agents/visionAgent";
 import { fileSearchAgent } from "../agents/fileSearchAgent";
 import { desktopControlAgent } from "../agents/desktopControlAgent";
-import { speak } from "../app/voice/useVoice";
+import {
+  naturalReply,
+  interpretConfirmation,
+  pickOption,
+  extractSearchQuery,
+} from "./dynamic";
 import type { ReplyLang, ChatHistoryMessage } from "../llm/openrouter";
 import type { Plan } from "./types";
 
@@ -18,125 +23,25 @@ export interface RouteResult {
   data?: Record<string, any>;
 }
 
-const CONFIRM_WORDS = ["yes", "haan", "ha", "confirm", "karo", "ok", "sure"];
-const CANCEL_WORDS = ["no", "nahi", "cancel", "mat karo"];
-
-
-
-type ActionKey =
-  | "search" | "open" | "write" | "close" | "play" | "pause" | "stop"
-  | "volume" | "brightness" | "wifi" | "bluetooth" | "screenshot"
-  | "folder" | "delete" | "create" | "notepad" | "recyclebin";
-
-const ACTION_TEMPLATES: Record<ActionKey, { ack: Record<ReplyLang, string>; done: Record<ReplyLang, string> }> = {
-  search: {
-    ack: { en: "Ok Boss, searching...", hi: "ओके बॉस, सर्च कर रहा हूँ..." },
-    done: { en: "Ok Boss, here's what I found.", hi: "बॉस, ये मिला।" }
-  },
-  open: {
-    ack: { en: "Ok Boss, opening...", hi: "ओके बॉस, खोल रहा हूँ..." },
-    done: { en: "Ok Boss, open kar diya. Next, what can I do for you?", hi: "ओके बॉस, खोल दिया। अगला, क्या करूं?" }
-  },
-  write: {
-    ack: { en: "Ok Boss, writing...", hi: "ओके बॉस, लिख रहा हूँ..." },
-    done: { en: "Ok Boss, likh diya.", hi: "ओके बॉस, लिख दिया।" }
-  },
-  close: {
-    ack: { en: "Ok Boss, closing...", hi: "ओके बॉस, बंद कर रहा हूँ..." },
-    done: { en: "Ok Boss, band kar diya.", hi: "ओके बॉस, बंद कर दिया।" }
-  },
-  play: {
-    ack: { en: "Ok Boss, playing...", hi: "ओके बॉस, चला रहा हूँ..." },
-    done: { en: "Ok Boss, chal raha hai.", hi: "ओके बॉस, चल रहा है।" }
-  },
-  pause: {
-    ack: { en: "Ok Boss, pausing...", hi: "ओके बॉस, रोक रहा हूँ..." },
-    done: { en: "Ok Boss, paused.", hi: "ओके बॉस, रोक दिया।" }
-  },
-  stop: {
-    ack: { en: "Ok Boss, stopping...", hi: "ओके बॉस, रोक रहा हूँ..." },
-    done: { en: "Ok Boss, stopped.", hi: "ओके बॉस, रोक दिया।" }
-  },
-  volume: {
-    ack: { en: "Ok Boss, adjusting volume...", hi: "ओके बॉस, वॉल्यूम बदल रहा हूँ..." },
-    done: { en: "Ok Boss, done.", hi: "ओके बॉस, हो गया।" }
-  },
-  brightness: {
-    ack: { en: "Ok Boss, adjusting brightness...", hi: "ओके बॉस, ब्राइटनेस बदल रहा हूँ..." },
-    done: { en: "Ok Boss, done.", hi: "ओके बॉस, हो गया।" }
-  },
-  wifi: {
-    ack: { en: "Ok Boss, on it...", hi: "ओके बॉस, कर रहा हूँ..." },
-    done: { en: "Ok Boss, done.", hi: "ओके बॉस, हो गया।" }
-  },
-  bluetooth: {
-    ack: { en: "Ok Boss, on it...", hi: "ओके बॉस, कर रहा हूँ..." },
-    done: { en: "Ok Boss, done.", hi: "ओके बॉस, हो गया।" }
-  },
-  screenshot: {
-    ack: { en: "Ok Boss, taking a screenshot...", hi: "ओके बॉस, स्क्रीनशॉट ले रहा हूँ..." },
-    done: { en: "Ok Boss, screenshot le liya.", hi: "ओके बॉस, स्क्रीनशॉट ले लिया।" }
-  },
-  folder: {
-    ack: { en: "Ok Boss, opening the folder...", hi: "ओके बॉस, फ़ोल्डर खोल रहा हूँ..." },
-    done: { en: "Ok Boss, folder open kar diya.", hi: "ओके बॉस, फ़ोल्डर खोल दिया।" }
-  },
-  delete: {
-    ack: { en: "Ok Boss, deleting...", hi: "ओके बॉस, डिलीट कर रहा हूँ..." },
-    done: { en: "Ok Boss, deleted.", hi: "ओके बॉस, डिलीट कर दिया।" }
-  },
-  create: {
-    ack: { en: "Ok Boss, creating...", hi: "ओके बॉस, बना रहा हूँ..." },
-    done: { en: "Ok Boss, ban gaya.", hi: "ओके बॉस, बन गया।" }
-  },
-  notepad: {
-    ack: { en: "Ok Boss, opening Notepad...", hi: "ओके बॉस, नोटपैड खोल रहा हूँ..." },
-    done: { en: "Ok Boss, likh diya.", hi: "ओके बॉस, लिख दिया।" }
-  },
-  recyclebin: {
-    ack: { en: "Ok Boss, opening Recycle Bin...", hi: "ओके बॉस, रीसायकल बिन खोल रहा हूँ..." },
-    done: { en: "Ok Boss, open kar diya.", hi: "ओके बॉस, खोल दिया।" }
-  }
-};
-
-/** Classifies which action keyword a system command matches, using the RAW message
- * (before filler-word stripping) so words like "open"/"search" are still present. */
-function classifyAction(rawMessage: string): ActionKey {
-  const lower = rawMessage.toLowerCase();
-
-  if (lower.includes("screenshot") || lower.includes("screen shot")) return "screenshot";
-  if (lower.includes("recycle bin") || lower.includes("trash")) return "recyclebin";
-  if (lower.includes("volume")) return "volume";
-  if (lower.includes("brightness") || lower.includes("chamak")) return "brightness";
-  if (lower.includes("wifi") || lower.includes("wi-fi")) return "wifi";
-  if (lower.includes("bluetooth")) return "bluetooth";
-  if (["download", "document", "desktop", "picture", "music", "video", "folder"].some(f => lower.includes(f))) return "folder";
-  if (lower.includes("notepad")) return "notepad";
-  if (/\b(delete|hatao|hata do|remove)\b/.test(lower)) return "delete";
-  if (/\b(create|banao|bana do)\b/.test(lower)) return "create";
-  if (/\b(pause|rok do|roko)\b/.test(lower)) return "pause";
-  if (/\b(stop|band karo|band kar do)\b/.test(lower)) return "stop";
-  if (/\b(close)\b/.test(lower)) return "close";
-  if (/\b(play|chalao|chala do|bajao|baja do|lagao|laga do)\b/.test(lower)) return "play";
-  if (/\b(search|khojo|dhundo|dhundho)\b/.test(lower)) return "search";
-  return "open";
-}
-
-const CONFIRM_MSGS: Record<ReplyLang, { restart: string; shutdown: string; cancelled: string; cancelledUnclear: string }> = {
+// Minimal fallbacks, used ONLY when the LLM is unavailable.
+const FALLBACK: Record<ReplyLang, { done: string; cancelled: string; blocked: string; confirmRestart: string; confirmShutdown: string }> = {
   en: {
-    restart: "Are you sure you want to restart the PC, Boss? Say yes to confirm.",
-    shutdown: "Are you sure you want to shut down the PC, Boss? Say yes to confirm.",
-    cancelled: "Okay, cancelled.",
-    cancelledUnclear: "Okay, I've cancelled that for safety."
+    done:            "Done! Let me know if you need anything else.",
+    cancelled:       "Alright, cancelled. Just say the word if you change your mind.",
+    blocked:         "Sorry, that's not something I can help with.",
+    confirmRestart:  "Just to confirm — you want to restart the PC? Say yes and I'll do it.",
+    confirmShutdown: "Just to confirm — you want to shut down the PC? Say yes and I'll proceed.",
   },
   hi: {
-    restart: "बॉस, क्या आप पक्का पीसी रीस्टार्ट करना चाहते हैं? हां बोलें कन्फर्म करने के लिए।",
-    shutdown: "बॉस, क्या आप पक्का पीसी शटडाउन करना चाहते हैं? हां बोलें कन्फर्म करने के लिए।",
-    cancelled: "ठीक है, कैंसिल कर दिया।",
-    cancelledUnclear: "सुरक्षा के लिए मैंने इसे कैंसिल कर दिया है।"
-  }
+    done:            "हो गया! कुछ और चाहिए तो बताओ।",
+    cancelled:       "ठीक है, छोड़ दिया। बदलना हो तो बताओ।",
+    blocked:         "यह नहीं कर सकता, माफ़ करना।",
+    confirmRestart:  "एक बार confirm करो — PC restart करनी है? हाँ बोलो तो करता हूँ।",
+    confirmShutdown: "एक बार confirm करो — PC shutdown करनी है? हाँ बोलो तो करता हूँ।",
+  },
 };
 
+// Hard safety guard (kept deterministic on purpose).
 const BLOCKED_TERMS = [
   "porn", "porno", "xxx", "nude", "nudes", "sex video", "adult video",
   "hentai", "onlyfans", "escort"
@@ -147,9 +52,7 @@ function isBlocked(text: string): boolean {
   return BLOCKED_TERMS.some(term => lower.includes(term));
 }
 
-// Tracks a pending destructive action awaiting a yes/no confirmation.
-// Expires after PENDING_TIMEOUT_MS so a stray later message (e.g. the user
-// changed topic instead of answering) never gets misread as a confirmation.
+// ---- Pending destructive action (restart / shutdown) ----
 const PENDING_TIMEOUT_MS = 90_000;
 
 let pendingConfirm: "restart" | "shutdown" | null = null;
@@ -159,11 +62,7 @@ function isPendingExpired(setAt: number): boolean {
   return Date.now() - setAt > PENDING_TIMEOUT_MS;
 }
 
-// Tracks a pending multi-turn follow-up after certain "open X" commands —
-// e.g. "open chrome" -> "which profile?" -> next message picks one;
-// "open youtube" -> "what do you want to watch?" -> next message searches
-// the same tab; "open vs code" -> "what do you want me to do?" -> next
-// message is treated as a coding task.
+// ---- Pending multi-turn follow-ups ----
 type PendingFollowUp =
   | { type: "chrome_profile"; profiles: { name: string; directory: string }[] }
   | { type: "youtube_search" }
@@ -178,47 +77,89 @@ const VSCODE_TRIGGER_WORDS = [
   "code editor", "cde", "b s", "bs"
 ];
 
+// Short action results get rephrased into a natural reply.
+// Long results (file lists, analysis, code) are passed through untouched.
+const MAX_WRAP_LENGTH = 300;
+
+async function wrapResult(
+  userMessage: string,
+  lang: ReplyLang,
+  history: ChatHistoryMessage[],
+  actionDesc: string,
+  result: string | undefined
+): Promise<string> {
+  const text = (result ?? "").trim();
+  if (text.length > MAX_WRAP_LENGTH) return text;
+
+  return naturalReply({
+    userMessage,
+    lang,
+    history,
+    situation: text
+      ? `You performed: ${actionDesc}. Result: ${text}`
+      : `You performed: ${actionDesc}. It completed with no extra output.`,
+    fallback: text || FALLBACK[lang].done,
+  });
+}
+
 export async function route(
   message: string,
   lang: ReplyLang = "en",
   history: ChatHistoryMessage[] = []
 ): Promise<RouteResult> {
 
+  const fb = FALLBACK[lang];
+
   if (isBlocked(message)) {
     return {
       success: false,
       action: "blocked",
-      message: lang === "hi" ? "माफ़ कीजिए बॉस, इसमें मदद नहीं कर सकता।" : "Sorry Boss, I can't help with that."
+      message: await naturalReply({
+        userMessage: message,
+        lang,
+        history,
+        situation: "The user asked for adult content. Politely decline in one short sentence without judgment.",
+        fallback: fb.blocked,
+      }),
     };
   }
 
-  const msgs = CONFIRM_MSGS[lang];
-
-  // ---- Handle a pending restart/shutdown confirmation first ----
+  // ---- Pending restart/shutdown confirmation ----
   if (pendingConfirm && isPendingExpired(pendingConfirmAt)) {
-    pendingConfirm = null; // stale — fall through to normal handling below
+    pendingConfirm = null;
   }
 
   if (pendingConfirm) {
-    const lower = message.toLowerCase();
     const action = pendingConfirm;
     pendingConfirm = null;
 
-    if (CONFIRM_WORDS.some(w => lower.includes(w))) {
+    const decision = await interpretConfirmation(message, `${action}`);
+
+    if (decision === "confirm") {
       const result = await systemAgent(action);
-      return { success: true, action: `system.${action}`, message: result };
+      return {
+        success: true,
+        action: `system.${action}`,
+        message: await wrapResult(message, lang, history, `${action} the PC`, result),
+      };
     }
 
-    if (CANCEL_WORDS.some(w => lower.includes(w))) {
-      return { success: true, action: "system.cancelled", message: msgs.cancelled };
-    }
-
-    return { success: true, action: "system.cancelled", message: msgs.cancelledUnclear };
+    return {
+      success: true,
+      action: "system.cancelled",
+      message: await naturalReply({
+        userMessage: message,
+        lang,
+        history,
+        situation: `The user did not clearly confirm, so you cancelled the PC ${action}. Tell them it's cancelled.`,
+        fallback: fb.cancelled,
+      }),
+    };
   }
 
-  // ---- Handle a pending multi-turn follow-up next ----
+  // ---- Pending multi-turn follow-up ----
   if (pendingFollowUp && isPendingExpired(pendingFollowUpAt)) {
-    pendingFollowUp = null; // stale — fall through to normal handling below
+    pendingFollowUp = null;
   }
 
   if (pendingFollowUp) {
@@ -226,46 +167,41 @@ export async function route(
     pendingFollowUp = null;
 
     if (followUp.type === "youtube_search") {
-      await window.vsmart.system.searchYoutube(message);
+      const query = await extractSearchQuery(message);
+      await window.vsmart.system.searchYoutube(query);
       return {
         success: true,
         action: "youtube.search",
-        message: lang === "hi"
-          ? `ठीक है बॉस, "${message}" search कर दिया।`
-          : `Ok Boss, searched for "${message}".`
+        message: await wrapResult(message, lang, history, `searched YouTube for "${query}"`, undefined),
       };
     }
 
     if (followUp.type === "vscode_task") {
       const result = await codingAgent(message);
-      return { success: true, action: "coding.write", message: result };
+      return { success: true, action: "coding.write", message: await wrapResult(message, lang, history, "wrote code in VS Code as requested", result) };
     }
 
     if (followUp.type === "chrome_profile") {
-      const lower = message.toLowerCase();
-      const chosen = followUp.profiles.find(p => lower.includes(p.name.toLowerCase()));
+      const idx = await pickOption(message, followUp.profiles.map(p => p.name));
 
-      if (chosen) {
+      if (idx >= 0) {
+        const chosen = followUp.profiles[idx];
         await window.vsmart.system.openChromeProfile(chosen.directory);
         return {
           success: true,
           action: "system.open",
-          message: lang === "hi"
-            ? `ओके बॉस, Chrome (${chosen.name}) खोल दिया।`
-            : `Ok Boss, opened Chrome (${chosen.name}).`
+          message: await wrapResult(message, lang, history, `opened Chrome with the "${chosen.name}" profile`, undefined),
         };
       }
 
-      // Couldn't match a profile name — open the default profile rather
-      // than leaving the user stuck.
       const result = await systemAgent("chrome");
       return {
         success: true,
         action: "system.open",
-        message: [result, lang === "hi"
-          ? "Profile samajh nahi aaya, default Chrome khol diya."
-          : "Couldn't match that profile, opened the default Chrome instead."
-        ].filter(Boolean).join(" ")
+        message: await wrapResult(
+          message, lang, history,
+          "opened default Chrome because the profile choice wasn't understood", result
+        ),
       };
     }
   }
@@ -279,11 +215,7 @@ export async function route(
       const lower = command.toLowerCase();
 
       if (lower.startsWith("show memory") || lower.includes("what do you remember")) {
-        return {
-          success: true,
-          action: "memory.show",
-          message: await memoryAgent("show")
-        };
+        return { success: true, action: "memory.show", message: await memoryAgent("show") };
       }
 
       if (lower.startsWith("recall") || lower.startsWith("what is my") || lower.startsWith("what's my")) {
@@ -291,18 +223,14 @@ export async function route(
           .replace(/^(recall|what is my|what's my)\s*/i, "")
           .replace(/\?$/, "")
           .trim();
-
-        return {
-          success: true,
-          action: "memory.get",
-          message: await memoryAgent("get", { key })
-        };
+        return { success: true, action: "memory.get", message: await memoryAgent("get", { key }) };
       }
 
+      const saved = await memoryAgent("save", { value: command });
       return {
         success: true,
         action: "memory.save",
-        message: await memoryAgent("save", { value: command })
+        message: await wrapResult(message, lang, history, "saved this to memory", saved),
       };
     }
 
@@ -312,18 +240,34 @@ export async function route(
       if (lower.includes("restart") || lower.includes("reboot")) {
         pendingConfirm = "restart";
         pendingConfirmAt = Date.now();
-        return { success: true, action: "system.confirm", message: msgs.restart };
+        return {
+          success: true,
+          action: "system.confirm",
+          message: await naturalReply({
+            userMessage: message, lang, history,
+            situation: "The user wants to restart the PC. Ask them to confirm (yes/no) before doing it.",
+            fallback: fb.confirmRestart,
+          }),
+        };
       }
 
       if (lower.includes("shutdown") || lower.includes("shut down")) {
         pendingConfirm = "shutdown";
         pendingConfirmAt = Date.now();
-        return { success: true, action: "system.confirm", message: msgs.shutdown };
+        return {
+          success: true,
+          action: "system.confirm",
+          message: await naturalReply({
+            userMessage: message, lang, history,
+            situation: "The user wants to shut down the PC. Ask them to confirm (yes/no) before doing it.",
+            fallback: fb.confirmShutdown,
+          }),
+        };
       }
 
       const trimmedCommand = lower.trim();
 
-      // Chrome — if multiple profiles exist, ask which one before opening.
+      // Chrome — ask which profile if there are several.
       if (trimmedCommand === "chrome" || trimmedCommand === "browser") {
         const profiles = await window.vsmart.system.getChromeProfiles();
 
@@ -334,133 +278,88 @@ export async function route(
           return {
             success: true,
             action: "system.askProfile",
-            message: lang === "hi"
-              ? `बॉस, कौन सी profile खोलूं? (${names})`
-              : `Which profile should I open, Boss? (${names})`
+            message: await naturalReply({
+              userMessage: message, lang, history,
+              situation: `Chrome has several profiles: ${names}. Ask which one to open.`,
+              fallback: lang === "hi" ? `बॉस, कौन सी profile खोलूं? (${names})` : `Which profile should I open, Boss? (${names})`,
+            }),
           };
         }
-        // 0 or 1 profile detected — fall through to the normal open below.
       }
 
-      // YouTube — open it now, then ask what to search for (same tab).
+      // YouTube — open, then ask what to watch.
       if (trimmedCommand === "youtube" || trimmedCommand === "yt") {
-        speak(
-          lang === "hi" ? "ओके बॉस, YouTube खोल रहा हूँ..." : "Ok Boss, opening YouTube...",
-          lang === "hi" ? "hi-IN" : "en-IN"
-        );
-
         const result = await systemAgent("youtube");
         pendingFollowUp = { type: "youtube_search" };
         pendingFollowUpAt = Date.now();
-
         return {
           success: true,
           action: "system.open",
-          message: [
-            result,
-            lang === "hi" ? "YouTube पे क्या देखना चाहते हो?" : "What do you want to watch on YouTube?"
-          ].filter(Boolean).join(" ")
+          message: await naturalReply({
+            userMessage: message, lang, history,
+            situation: `You opened YouTube${result ? ` (${result})` : ""}. Now ask what they want to watch.`,
+            fallback: lang === "hi" ? "YouTube खोल दिया। क्या देखना चाहते हो?" : "YouTube is open. What do you want to watch?",
+          }),
         };
       }
 
-      // VS Code — open it now, then ask what to build.
+      // VS Code — open, then ask what to build.
       if (VSCODE_TRIGGER_WORDS.includes(trimmedCommand)) {
-        speak(
-          lang === "hi" ? "ओके बॉस, VS Code खोल रहा हूँ..." : "Ok Boss, opening VS Code...",
-          lang === "hi" ? "hi-IN" : "en-IN"
-        );
-
         const result = await systemAgent(command);
         pendingFollowUp = { type: "vscode_task" };
         pendingFollowUpAt = Date.now();
-
         return {
           success: true,
           action: "system.open",
-          message: [
-            result,
-            lang === "hi" ? "VS Code में क्या करना चाहते हो?" : "What do you want me to do in VS Code?"
-          ].filter(Boolean).join(" ")
+          message: await naturalReply({
+            userMessage: message, lang, history,
+            situation: `You opened VS Code${result ? ` (${result})` : ""}. Now ask what they want you to do in it.`,
+            fallback: lang === "hi" ? "VS Code खोल दिया। क्या करना है?" : "VS Code is open. What should I do in it?",
+          }),
         };
       }
 
-      const actionKey = classifyAction(message);
-      const template = ACTION_TEMPLATES[actionKey];
-
-      speak(template.ack[lang], lang === "hi" ? "hi-IN" : "en-IN");
-
+      // Any other system command: execute, then describe naturally.
       const result = await systemAgent(command);
-
       return {
         success: true,
-        action: "system.open",
-        message: [result, template.done[lang]].filter(Boolean).join(" ")
+        action: "system.run",
+        message: await wrapResult(message, lang, history, `system command "${command}"`, result),
       };
     }
 
     case "vision": {
-      speak(
-        lang === "hi" ? "ओके बॉस, स्क्रीन देख रहा हूँ..." : "Ok Boss, looking at your screen...",
-        lang === "hi" ? "hi-IN" : "en-IN"
-      );
-
       const result = await visionAgent(command, lang);
-
-      return {
-        success: true,
-        action: "vision.analyze",
-        message: result
-      };
+      return { success: true, action: "vision.analyze", message: result };
     }
 
     case "file": {
-      speak(
-        lang === "hi" ? "ओके बॉस, फ़ाइलें ढूंढ रहा हूँ..." : "Ok Boss, searching your files...",
-        lang === "hi" ? "hi-IN" : "en-IN"
-      );
-
       const result = await fileSearchAgent(command, lang);
-
-      return {
-        success: true,
-        action: "file.search",
-        message: result
-      };
+      return { success: true, action: "file.search", message: result };
     }
 
     case "automation": {
       const result = await desktopControlAgent(command, lang);
-
       return {
         success: true,
         action: "automation.control",
-        message: result
+        message: await wrapResult(message, lang, history, `desktop automation "${command}"`, result),
       };
     }
 
     case "coding": {
-      const template = ACTION_TEMPLATES.write;
-
-      speak(template.ack[lang], lang === "hi" ? "hi-IN" : "en-IN");
-
       const result = await codingAgent(command, history);
-
       return {
         success: true,
         action: "coding.write",
-        message: [result, template.done[lang]].filter(Boolean).join(" ")
+        message: await wrapResult(message, lang, history, "wrote the requested code", result),
       };
     }
 
     case "chat":
     default: {
       const reply = await chatAgent(message, lang, history);
-
-      return {
-        success: true,
-        action: "chat",
-        message: reply
-      };
+      return { success: true, action: "chat", message: reply };
     }
   }
 }
