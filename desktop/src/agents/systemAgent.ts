@@ -26,11 +26,11 @@ export async function systemAgent(target: string): Promise<string> {
     if (lower.includes("volume") || lower.includes("awaaz") || lower.includes("आवाज़")) {
       const pct = extractNumber(lower);
       if (pct !== null) return await window.vsmart.systemControl("setVolume", pct);
-      // relative: "volume badha" / "volume ghata"
+      // Relative: step by ±15 from current (better UX than jumping to hardcoded 80/30)
       if (/badha|badhao|zyada|increase|up/.test(lower))
-        return await window.vsmart.systemControl("setVolume", 80);
+        return await window.vsmart.systemControl("volumeUp");
       if (/ghata|ghataao|kam|decrease|down/.test(lower))
-        return await window.vsmart.systemControl("setVolume", 30);
+        return await window.vsmart.systemControl("volumeDown");
       if (isOff(lower) || /mute|silent/.test(lower))
         return await window.vsmart.systemControl("mediaMute");
     }
@@ -45,15 +45,9 @@ export async function systemAgent(target: string): Promise<string> {
       const pct = extractNumber(lower);
       if (pct !== null) return await window.vsmart.systemControl("setBrightness", pct);
       if (/badha|badhao|zyada|increase|up/.test(lower))
-        return await window.vsmart.systemControl("setBrightness", 80);
+        return await window.vsmart.systemControl("brightnessUp");
       if (/ghata|ghataao|kam|decrease|down/.test(lower))
-        return await window.vsmart.systemControl("setBrightness", 30);
-    }
-
-    // ---- Wi-Fi ----
-    if (lower.includes("wifi") || lower.includes("wi-fi") || lower.includes("internet") || lower.includes("network")) {
-      if (isOff(lower)) return await window.vsmart.systemControl("wifiOff");
-      if (isOn(lower))  return await window.vsmart.systemControl("wifiOn");
+        return await window.vsmart.systemControl("brightnessDown");
     }
 
     // ---- Bluetooth ----
@@ -163,7 +157,9 @@ export async function systemAgent(target: string): Promise<string> {
     // ---- Fallback: generic app / website opener ----
     return await window.vsmart.openSystem(target);
 
-  } catch {
-    return `I could not do that. Please try again.`;
+  } catch (err) {
+    console.error("[systemAgent] error:", err);
+    // Return a bilingual fallback — caller will speak this, so keep it short
+    return "Nahi ho paya yeh — ek baar aur try karo?";
   }
 }

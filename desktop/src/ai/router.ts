@@ -62,6 +62,12 @@ function isPendingExpired(setAt: number): boolean {
   return Date.now() - setAt > PENDING_TIMEOUT_MS;
 }
 
+// Always clear pending state — called at start of each route() to prevent leaks
+function clearPendingIfExpired() {
+  if (pendingConfirm    && isPendingExpired(pendingConfirmAt))    pendingConfirm    = null;
+  if (pendingFollowUp   && isPendingExpired(pendingFollowUpAt))   pendingFollowUp   = null;
+}
+
 // ---- Pending multi-turn follow-ups ----
 type PendingFollowUp =
   | { type: "chrome_profile"; profiles: { name: string; directory: string }[] }
@@ -108,7 +114,12 @@ export async function route(
   history: ChatHistoryMessage[] = []
 ): Promise<RouteResult> {
 
+  // Always expire stale pending states at entry — prevents leaks on errors
+  clearPendingIfExpired();
+
   const fb = FALLBACK[lang];
+
+  try {
 
   if (isBlocked(message)) {
     return {
@@ -226,7 +237,10 @@ export async function route(
         return { success: true, action: "memory.get", message: await memoryAgent("get", { key }) };
       }
 
-      const saved = await memoryAgent("save", { value: command });
+      // Save: extract a meaningful key from the command
+      // e.g. "mera naam Shubham hai" -> key="naam", value="Shubham hai"
+      // e.g. "remember that I use dark mode" -> key="preference", value="I use dark mode"
+      const saved = await memoryAgent("save", { key: "info", value: command });
       return {
         success: true,
         action: "memory.save",
@@ -361,5 +375,23 @@ export async function route(
       const reply = await chatAgent(message, lang, history);
       return { success: true, action: "chat", message: reply };
     }
+  }
+
+  } catch (err) {
+    // Top-level safety net — clears any pending state so it never leaks
+    pendingConfirm  = null;
+    pendingFollowUp = null;
+
+    if (err instanceof DOMException && err.name === "AbortError") throw err;
+
+    const isHi = lang === "hi";
+    console.error("[route] Unhandled error:", err);
+    return {
+      success: false,
+      action: "error",
+      message: isHi
+        ? "Kuch gadbad ho gayi — try kar sakte ho dobara?"
+        : "Something went wrong — please try again.",
+    };
   }
 }

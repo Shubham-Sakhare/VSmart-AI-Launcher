@@ -158,13 +158,18 @@ export default function JarvisPage({ voice, onRegisterVoiceHandler, popupMode, o
         const result = await orchestrate(t, replyLang as ReplyLang, priorHistory);
         if (myToken !== genToken.current) return;
 
-        appendAssistantMsg(convId, result.message || "Done.", "text");
+        const replyMsg = result.message || "Done.";
+        appendAssistantMsg(convId, replyMsg, "text");
         setAssistantState(result.success ? "COMPLETED" : "ERROR");
+
+        // Speak the reply aloud — this is a voice assistant, not just a chatbot
+        speak(replyMsg, replyLang === "hi" ? "hi-IN" : "en-IN");
       } catch (e) {
         if (myToken !== genToken.current) return;
         const errMsg = e instanceof Error ? e.message : "Something went wrong.";
         appendAssistantMsg(convId, `Error: ${errMsg}`, "text");
         setAssistantState("ERROR", errMsg);
+        speak(errMsg, replyLang === "hi" ? "hi-IN" : "en-IN");
       }
       setTimeout(() => setAssistantState("IDLE"), 2000);
       return;
@@ -197,6 +202,13 @@ export default function JarvisPage({ voice, onRegisterVoiceHandler, popupMode, o
       setMessageStreaming(convId, msgId, false);
       setAssistantState("COMPLETED");
       setTimeout(() => setAssistantState("IDLE"), 2000);
+
+      // Speak the reply — voice assistant should speak, not just show text
+      if (accumulated) {
+        // Split into first 2 sentences for TTS (avoid very long speech)
+        const spokenPart = accumulated.split(/(?<=[.!?।])\s+/).slice(0, 2).join(" ");
+        speak(spokenPart, replyLang === "hi" ? "hi-IN" : "en-IN");
+      }
 
       // Learn facts about the user in the background (LLM-based extractor)
       void factExtractorAgent(t, accumulated, replyLang as ReplyLang);

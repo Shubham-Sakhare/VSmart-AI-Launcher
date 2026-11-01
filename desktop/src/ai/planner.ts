@@ -13,6 +13,7 @@ import { ask } from "./dynamic";
 
 const LLM_INTENTS: Intent[] = ["system", "memory", "file", "automation", "coding", "chat", "vision"];
 const PLANNER_TIMEOUT_MS = 5000;
+const PLANNER_RETRY_TIMEOUT_MS = 3500; // faster second attempt
 const HISTORY_TURNS = 6;
 const HISTORY_CHARS = 250;
 
@@ -79,20 +80,31 @@ export async function planner(
   history: ChatHistoryMessage[] = []
 ): Promise<Plan> {
 
-  const raw = await ask(
-    {
-      system: SYSTEM_PROMPT,
-      user: `Recent conversation:\n${formatHistory(history)}\n\nUser message: "${text}"\n\nJSON:`,
-      maxTokens: 120,
-      temperature: 0,
-    },
-    PLANNER_TIMEOUT_MS
-  );
+  const plannerRequest = {
+    system: SYSTEM_PROMPT,
+    user: `Recent conversation:\n${formatHistory(history)}\n\nUser message: "${text}"\n\nJSON:`,
+    maxTokens: 120,
+    temperature: 0,
+  };
 
-  const plan = parsePlan(raw);
+  // First attempt
+  let raw = await ask(plannerRequest, PLANNER_TIMEOUT_MS);
+  let plan = parsePlan(raw);
+
   if (plan) {
     console.log(`[Planner] LLM -> ${plan.intent}: "${plan.command}"`);
     return plan;
+  }
+
+  // One retry with slightly lower timeout (different fast model may succeed)
+  if (raw === null) {
+    console.warn("[Planner] First attempt timed out — retrying...");
+    raw = await ask(plannerRequest, PLANNER_RETRY_TIMEOUT_MS);
+    plan = parsePlan(raw);
+    if (plan) {
+      console.log(`[Planner] LLM retry -> ${plan.intent}: "${plan.command}"`);
+      return plan;
+    }
   }
 
   console.warn("[Planner] LLM unavailable/invalid, using keyword fallback.");
@@ -109,12 +121,18 @@ const FILLER_WORDS = [
 ];
 
 const CONTINUABLE_INTENTS: Intent[] = ["file", "vision", "automation", "system"];
-const SHORT_MESSAGE_WORD_LIMIT = 4;
+// Follow-up words that indicate the user is continuing a previous topic
+const FOLLOWUP_RE = /\b(usse|isko|uski|woh|yeh|yeh wala|us|is|isko|use|band|hata|khol|aur|more|again|dobara|phir)\b/i;
+const SHORT_MESSAGE_WORD_LIMIT = 6; // was 4 — "usse band kar do" (5 words) should also be a follow-up
 
 function keywordPlan(text: string, history: ChatHistoryMessage[]): Plan {
   let intent = detectIntent(text);
 
-  if (intent === "chat" && text.trim().split(/\s+/).length <= SHORT_MESSAGE_WORD_LIMIT) {
+  // Treat short follow-up messages as continuing the previous topic
+  const wordCount = text.trim().split(/\s+/).length;
+  const isFollowUp = wordCount <= SHORT_MESSAGE_WORD_LIMIT || FOLLOWUP_RE.test(text);
+
+  if (intent === "chat" && isFollowUp) {
     const lastIntent = lastUserIntent(history);
     if (lastIntent && CONTINUABLE_INTENTS.includes(lastIntent)) {
       intent = lastIntent;

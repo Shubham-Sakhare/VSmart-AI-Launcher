@@ -61,7 +61,7 @@ export async function detectProvider(): Promise<Provider> {
   if (state.checking) return state.provider;
   if (Date.now() - state.lastChecked < CHECK_INTERVAL) return state.provider;
 
-  state.checking   = true;
+  state.checking    = true;
   state.lastChecked = Date.now();
 
   try {
@@ -78,13 +78,18 @@ export async function detectProvider(): Promise<Provider> {
         return "ollama";
       }
     }
-  } catch { /* fall through */ }
-
-  state.provider = "openrouter";
-  console.log("[LLM] Using OpenRouter");
-  return "openrouter";
-
-  state.checking = false;
+    state.provider = "openrouter";
+    console.log("[LLM] Using OpenRouter");
+    return "openrouter";
+  } catch {
+    state.provider = "openrouter";
+    return "openrouter";
+  } finally {
+    // CRITICAL: always reset checking so the next 30s interval re-runs properly.
+    // Previously this was after a `return` (unreachable dead code) which meant
+    // checking was stuck true forever after the first call.
+    state.checking = false;
+  }
 }
 
 // ── Current provider status (for UI display) ──────────────────────────────────

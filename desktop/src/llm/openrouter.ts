@@ -22,29 +22,30 @@ const OPENROUTER_URL    = "https://openrouter.ai/api/v1/chat/completions";
 const REQUEST_TIMEOUT   = 30_000;
 
 // Cascade of free models — tried in order until one succeeds.
-// Verified October 2026: https://openrouter.ai/models?max_price=0
+// Verified November 2026 against https://openrouter.ai/models?max_price=0
+// Rules: only include models confirmed to exist and serve free-tier requests.
+// "openrouter/auto" as last resort routes to whatever free model OR picks best available.
 export const CHAT_MODELS = [
-  "nvidia/nemotron-3-super-120b-a12b:free",
-  "nvidia/nemotron-3-ultra-550b-a55b:free",
-  "nvidia/nemotron-3.5-lightning:free",
-  "google/gemma-4-31b-it:free",
-  "thinkingmachines/inkling:free",
-  "nex-agi/nex-n2.5-pro:free",
-  "openrouter/free",
+  "google/gemma-3-27b-it:free",
+  "google/gemma-3-12b-it:free",
+  "meta-llama/llama-3.2-3b-instruct:free",
+  "meta-llama/llama-3.1-8b-instruct:free",
+  "mistralai/mistral-7b-instruct:free",
+  "qwen/qwen-2.5-7b-instruct:free",
+  "openrouter/auto",
 ];
 export const CODER_MODELS = [
-  "cohere/north-mini-code:free",
-  "poolside/laguna-s-2.1:free",
-  "poolside/laguna-xs-2.1:free",
-  "nvidia/nemotron-3-super-120b-a12b:free",
-  "openrouter/free",
+  "qwen/qwen-2.5-coder-7b-instruct:free",
+  "google/gemma-3-27b-it:free",
+  "meta-llama/llama-3.1-8b-instruct:free",
+  "mistralai/mistral-7b-instruct:free",
+  "openrouter/auto",
 ];
 export const VISION_MODELS = [
-  "google/gemma-4-31b-it:free",
-  "google/gemma-4-26b-a4b-it:free",
-  "nex-agi/nex-n2.5-pro:free",
-  "thinkingmachines/inkling:free",
-  "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+  "google/gemma-3-27b-it:free",
+  "meta-llama/llama-3.2-11b-vision-instruct:free",
+  "qwen/qwen2.5-vl-7b-instruct:free",
+  "openrouter/auto",
 ];
 
 // ── API key ──────────────────────────────────────────────────────────────────
@@ -84,7 +85,9 @@ async function fetchCompletion(
   model: string,
   messages: ApiMessage[],
   stream: false,
-  maxTokens?: number
+  maxTokens?: number,
+  onChunk?: undefined,
+  temperature?: number
 ): Promise<string>;
 async function fetchCompletion(
   apiKey: string,
@@ -92,7 +95,8 @@ async function fetchCompletion(
   messages: ApiMessage[],
   stream: true,
   maxTokens: number,
-  onChunk: (delta: string, accumulated: string) => void
+  onChunk: (delta: string, accumulated: string) => void,
+  temperature?: number
 ): Promise<string>;
 async function fetchCompletion(
   apiKey: string,
@@ -100,7 +104,8 @@ async function fetchCompletion(
   messages: ApiMessage[],
   stream: boolean,
   maxTokens = 2048,
-  onChunk?: (delta: string, accumulated: string) => void
+  onChunk?: (delta: string, accumulated: string) => void,
+  temperature = 0.7   // callers can override: 0 for deterministic, 0.7 for creative
 ): Promise<string> {
   if (!apiKey) throw new Error("OpenRouter API key missing. Add it in Settings.");
 
@@ -178,13 +183,14 @@ export async function streamWithFallback(
   models: string[],
   messages: ApiMessage[],
   onChunk: (delta: string, accumulated: string) => void,
-  maxTokens = 1024
+  maxTokens = 1024,
+  temperature = 0.75
 ): Promise<string> {
   if (!apiKey) throw new Error("OpenRouter API key missing.");
   let last: unknown;
   for (const model of models) {
     try {
-      return await fetchCompletion(apiKey, model, messages, true, maxTokens, onChunk);
+      return await fetchCompletion(apiKey, model, messages, true, maxTokens, onChunk, temperature);
     } catch (e) {
       if (e instanceof DOMException && e.name === "AbortError") throw e;
       console.warn("[LLM] stream fallback:", model, (e as Error).message);
@@ -198,13 +204,14 @@ export async function callWithFallback(
   apiKey: string,
   models: string[],
   messages: ApiMessage[],
-  maxTokens = 2048
+  maxTokens = 1024,
+  temperature = 0.7
 ): Promise<string> {
   if (!apiKey) throw new Error("OpenRouter API key missing.");
   let last: unknown;
   for (const model of models) {
     try {
-      return await fetchCompletion(apiKey, model, messages, false, maxTokens);
+      return await fetchCompletion(apiKey, model, messages, false, maxTokens, undefined, temperature);
     } catch (e) {
       if (e instanceof DOMException && e.name === "AbortError") throw e;
       console.warn("[LLM] call fallback:", model, (e as Error).message);

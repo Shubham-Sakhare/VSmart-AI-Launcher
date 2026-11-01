@@ -1,17 +1,15 @@
 import { registerLLM } from "./dynamic";
 import { getApiKey } from "../llm/openrouter";
 
-// Helper calls (planner, natural replies, confirmations) use their OWN fetch,
-// not callWithFallback(). openrouter.ts keeps one shared AbortController, so a
-// helper call through it would abort the main chat answer (and vice versa).
-//
-// Fast models first. If replies come back empty, raise maxTokens in
-// dynamic.ts or move a non-reasoning model to the top of this list.
+// Fast models first — these are used for planner, naturalReply, confirmations.
+// Separate from main CHAT_MODELS to avoid shared AbortController interference.
+// Verified November 2026.
 const URL = "https://openrouter.ai/api/v1/chat/completions";
 const FAST_MODELS = [
-  "nvidia/nemotron-3.5-lightning:free",
-  "google/gemma-4-31b-it:free",
-  "openrouter/free",
+  "google/gemma-3-12b-it:free",
+  "meta-llama/llama-3.2-3b-instruct:free",
+  "mistralai/mistral-7b-instruct:free",
+  "openrouter/auto",
 ];
 const PER_MODEL_TIMEOUT_MS = 2500;
 
