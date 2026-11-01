@@ -30,37 +30,41 @@ const MIN_THRESHOLD           = 0.015; // never trigger below this RMS
 const MAX_THRESHOLD           = 0.080; // cap so normal speech always clears it
 const SPEECH_CONFIRM_CHUNKS   = 3;     // consecutive above-thr chunks → speech start
 const SPEECH_END_CHUNKS       = 3;     // consecutive quiet chunks → arm end-timer
-const VAD_SILENCE_MS          = 1000;  // silence after speech → finalize turn
-const MIN_SPEECH_MS           = 500;   // discard turns shorter than this
+const VAD_SILENCE_MS          = 1200;  // silence after speech → finalize (1.2s gives natural pauses room)
+const MIN_SPEECH_MS           = 400;   // discard turns shorter than this (was 500ms — catches short commands)
 const SILENCE_TIMEOUT_MS      = 7000;  // hard limit per turn (stuck-mic guard)
 const RECALIBRATE_INTERVAL_MS = 8000;  // dynamic recalibration interval
 const RECALIBRATE_WINDOW_MS   = 500;   // sampling window per recalibration
 const WAKE_RESTART_MS         = 400;   // delay before restarting mic (wake mode)
-const CONVERSATION_MS         = 12000; // follow-up window after a command
+const CONVERSATION_MS         = 15000; // follow-up window after a command (15s for natural back-and-forth)
 
 // ── Wake word variants ────────────────────────────────────────────────────────
-// Whisper mis-hears "VSmart" — accept common phonetic variants
+// Whisper mis-hears "Iris" and "VSmart" — accept common phonetic variants
 const WAKE_RE =
-  /\b(v\.?\s*smart|vsmart|vismart|is\s*mart|es\s*mart|the\s*smart|we\s*smart|b\.?\s*smart|bsmart)\b/i;
+  /\b(iris|i\.?\s*ris|hey\s*iris|ok\s*iris|okay\s*iris|iras|iress|v\.?\s*smart|vsmart|vismart|is\s*mart|es\s*mart|the\s*smart|we\s*smart|b\.?\s*smart|bsmart|hey\s*vsmart|ok\s*vsmart)\b/i;
 
 // ── Thinking fillers ──────────────────────────────────────────────────────────
 // Spoken immediately after Whisper returns so there's no silent gap while
-// the LLM processes. Makes the assistant feel alive, not frozen.
-const FILLERS_EN = ["Sure, on it.", "Got it.", "One sec.", "Right away.", "Hmm, let me check."];
-const FILLERS_HI = ["हाँ बॉस, देखता हूँ।", "जी बॉस, अभी करता हूँ।", "ठीक है, एक सेकंड।", "समझ गया।"];
+// the LLM processes. Makes the assistant feel alive and listening.
+const FILLERS_EN = ["Sure, on it.", "Got it.", "One sec.", "Right away.", "Let me check.", "Okay, give me a moment."];
+const FILLERS_HI = ["हाँ, देखती हूँ।", "जी, अभी करती हूँ।", "ठीक है, एक सेकंड।", "समझ गई।", "हाँ बोलो।"];
+const FILLERS_HINGLISH = ["Haan, dekh rahi hoon.", "Abhi karti hoon!", "Ek sec.", "Samajh gayi.", "Sure, ho jaayega.", "Got it, ek sec."];
 const filler = (lang: string) => {
-  const pool = lang.toLowerCase().startsWith("hi") ? FILLERS_HI : FILLERS_EN;
-  return pool[Math.floor(Math.random() * pool.length)];
+  if (lang.toLowerCase().startsWith("hi")) {
+    return FILLERS_HI[Math.floor(Math.random() * FILLERS_HI.length)];
+  }
+  // Hinglish — mix of both (most common usage)
+  return FILLERS_HINGLISH[Math.floor(Math.random() * FILLERS_HINGLISH.length)];
 };
 
 // ── Greetings ─────────────────────────────────────────────────────────────────
 function greeting(hi: boolean): string {
   const h = new Date().getHours();
   if (hi) {
-    if (h >= 5  && h < 12) return "सुबह का नमस्ते! बताओ क्या करना है?";
-    if (h >= 12 && h < 17) return "हाँ, बताओ — क्या मदद चाहिए?";
-    if (h >= 17 && h < 21) return "शाम को नमस्ते! क्या काम है?";
-    return "हाँ, बोलो — सुन रहा हूँ।";
+    if (h >= 5  && h < 12) return "Subah ki shuruat mubarak! Batao kya karna hai?";
+    if (h >= 12 && h < 17) return "Haan, batao — kya mदद chahiye?";
+    if (h >= 17 && h < 21) return "Shaam ko bhi main yahaan hoon — kya kaam hai?";
+    return "Haan, bol — sun rahi hoon.";
   }
   if (h >= 5  && h < 12) return "Good morning! What can I do for you?";
   if (h >= 12 && h < 17) return "Hey! How can I help?";
@@ -220,9 +224,22 @@ export function useVoice({
     } else {
       // Whisper returned nothing — give feedback only on real attempts
       if (didBargeIn || inConvRef.current || !wakeEnabledRef.current) {
-        const retries_hi = ["माफ़ कीजिए बॉस, ठीक से सुनाई नहीं दिया।","बॉस, एक बार और बोलिए।","समझ नहीं आया, दोबारा बोलिए।"];
-        const retries_en = ["Sorry Boss, didn't catch that — say it again?","Hmm, missed that. Try once more.","Could you repeat that, Boss?"];
-        const pool = isHi ? retries_hi : retries_en;
+        const retries_hi = [
+          "Maafi — thoda clearly bolo, suna nahi.",
+          "Ek baar aur bologe? Nahi suna.",
+          "Sorry, clear nahi aaya — phir se?",
+        ];
+        const retries_hinglish = [
+          "Sorry, didn't catch that — ek baar aur bolo?",
+          "Hmm, nahi suna clearly — once more?",
+          "Kya bola? Ek baar phir se?",
+        ];
+        const retries_en = [
+          "Sorry, didn't catch that — say it again?",
+          "Hmm, missed that. Try once more.",
+          "Could you repeat that?",
+        ];
+        const pool = isHi ? retries_hi : (lang.includes("IN") ? retries_hinglish : retries_en);
         speak(pool[Math.floor(Math.random() * pool.length)], lang);
         setErrorMsg(isHi ? "दोबारा बोलिए…" : "Didn't catch that — try again.");
         setTimeout(() => setErrorMsg(null), 3000);

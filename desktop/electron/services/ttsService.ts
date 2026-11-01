@@ -32,11 +32,12 @@ async function getClient(voiceKey: string, voiceName: string): Promise<MsEdgeTTS
 }
 
 // Wrap text in SSML for a more natural Indian speech rhythm:
-//   - slightly faster rate (+5%) — Indian English is naturally a bit quicker
-//   - pitch slightly higher (+5%) — gives Neerja/Swara the warm presence
-//     of a real Indian voice rather than the flatter default
-//   - short pauses after commas/periods via <break> tags so the AI sounds
-//     like it's thinking, not reading a transcript
+//   - rate="-5%": slightly slower than default — clearer, warmer, more human
+//     (default Edge TTS is slightly fast; -5% sounds like real conversation)
+//   - pitch="+10%": gives Neerja/Swara the warm, bright presence of a real
+//     Indian voice — enough lift to feel engaged, not flat/neutral
+//   - Natural micro-pauses via <break> tags so the AI sounds like it's
+//     thinking between thoughts, not just reading text linearly
 function wrapSsml(text: string, voiceName: string): string {
   // Sanitise XML-special chars that would break SSML
   const safe = text
@@ -46,14 +47,15 @@ function wrapSsml(text: string, voiceName: string): string {
     .replace(/"/g, "&quot;");
 
   // Add natural micro-pauses after sentence-ending punctuation
+  // Longer pause after sentences (400ms), shorter after commas (150ms)
   const paced = safe
-    .replace(/([.!?])\s+/g, '$1<break time="300ms"/> ')
-    .replace(/([,;])\s+/g, '$1<break time="120ms"/> ');
+    .replace(/([.!?।])\s+/g, '$1<break time="400ms"/> ')
+    .replace(/([,;:])\s+/g, '$1<break time="150ms"/> ');
 
   return (
     `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="en-IN">` +
     `<voice name="${voiceName}">` +
-    `<prosody rate="5%" pitch="5%">` +
+    `<prosody rate="-5%" pitch="+10%">` +
     paced +
     `</prosody>` +
     `</voice>` +

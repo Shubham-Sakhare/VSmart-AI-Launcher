@@ -19,7 +19,7 @@ export interface LauncherCatalogEntry {
 // Every internal page that CAN show in the V-logo "VSmart Apps" panel.
 export const LAUNCHER_CATALOG: LauncherCatalogEntry[] = [
   { page: "dashboard",  icon: <LayoutGrid size={22} />,   label: "Command Center" },
-  { page: "jarvis",     icon: <Bot size={22} />,           label: "VSmart AI"      },
+  { page: "jarvis",     icon: <Bot size={22} />,           label: "Iris AI"        },
   { page: "vsmartchat", icon: <Sparkles size={22} />,      label: "VSmart Chat"    },
   { page: "agents",     icon: <LineChart size={22} />,     label: "Analysis"       },
   { page: "tasks",      icon: <ClipboardList size={22} />, label: "Tasks"          },

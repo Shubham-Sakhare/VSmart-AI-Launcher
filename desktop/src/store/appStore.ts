@@ -90,14 +90,14 @@ interface AppStore {
 
 // ── Default persona ───────────────────────────────────────────────────────────
 const DEFAULT_PERSONA: Persona = {
-  name: "VSmart AI",
-  greeting: "Haan bolo, main sun raha hoon.",
+  name: "Iris",
+  greeting: "Haan bolo, main sun rahi hoon.",
   tone: "casual",
   language: "hinglish",
-  responseLength: "medium",
+  responseLength: "short",
   humor: true,
   speakingGender: "female",
-  wakeWord: "Hey VSmart",
+  wakeWord: "Hey Iris",
 };
 
 // ── Default permissions ───────────────────────────────────────────────────────

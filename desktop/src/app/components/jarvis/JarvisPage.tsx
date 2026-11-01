@@ -29,6 +29,7 @@ import { planner }          from "../../../ai/planner";
 import { orchestrate }      from "../../../ai/orchestrator";
 import { factExtractorAgent } from "../../../agents/factExtractorAgent";
 import type { VoiceControls }  from "../../voice/useVoice";
+import { speak }               from "../../voice/useVoice";
 import type { ApiMessage, ReplyLang } from "../../../llm/openrouter";
 import "./JarvisPage.css";
 
@@ -73,6 +74,26 @@ export default function JarvisPage({ voice, onRegisterVoiceHandler, popupMode, o
   // ── Load conversations on mount ───────────────────────────────────────────
   useEffect(() => {
     void loadConversations();
+  }, []);
+
+  // ── Iris greeting on first open (spoken aloud) ────────────────────────────
+  useEffect(() => {
+    const key = "iris-greeted-today";
+    const today = new Date().toDateString();
+    if (sessionStorage.getItem(key) !== today) {
+      sessionStorage.setItem(key, today);
+      // Small delay so TTS client initializes
+      setTimeout(() => {
+        const h = new Date().getHours();
+        const greet =
+          h >= 5  && h < 12 ? "Good morning! Iris here — ready to help." :
+          h >= 12 && h < 17 ? "Hey! Iris online — what do you need?" :
+          h >= 17 && h < 21 ? "Good evening! Iris here." :
+          "Iris here — go ahead.";
+        speak(greet, persona.language === "hi" ? "hi-IN" : "en-IN");
+      }, 1500);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── Check provider on mount ───────────────────────────────────────────────

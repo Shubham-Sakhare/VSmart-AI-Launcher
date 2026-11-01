@@ -39,13 +39,14 @@ export function tryDirectRoute(msg: string): DirectRoute | null {
 
   // Open app / website / folder
   const openPat = [
-    /^(?:open|launch|start|chalu\s*kar|kholo?|kholna\s*hai)\s+(.+)$/i,
-    /^(.+?)\s+(?:kholo?|open\s*karo?|chalu\s*karo?|chalao?|open\s*kar|kholna)$/i,
+    /^(?:open|launch|start|chalu\s*kar|kholo?|kholna\s*hai|chala|chalao)\s+(.+)$/i,
+    /^(.+?)\s+(?:kholo?|open\s*karo?|chalu\s*karo?|chalao?|open\s*kar|kholna|start\s*karo?)$/i,
+    /^(.+?)\s+(?:open|launch|chalo?|chalao?)\s*(?:karo?|kar\s*do|please)?$/i,
   ];
   for (const re of openPat) {
     const m = lo.match(re);
     if (m) {
-      const t = m[1].trim().replace(/\s*(please|bhai|boss|jaldi|abhi|karo|kar\s*do|yaar)\s*$/i,"").trim();
+      const t = m[1].trim().replace(/\s*(please|bhai|boss|jaldi|abhi|karo|kar\s*do|yaar|na|do)\s*$/i,"").trim();
       if (t) return { tool:"system_action", args:{ command:`open ${t}` } };
     }
   }
@@ -124,36 +125,42 @@ async function savePreference(text: string): Promise<void> {
 // ── System prompt for LLM agentic calls ──────────────────────────────────────
 function buildPrompt(lang: ReplyLang, mem: string): string {
   const langInstr = lang === "hi"
-    ? "Hindi mein baat karo (Devanagari), natural aur conversational. English tech terms mix kar sakte ho."
-    : "Hinglish mein baat karo — jaise real urban Indians bolte hain. Roman script. Natural, friendly, NOT robotic.";
+    ? "Natural Hindi mein baat karo (Devanagari). English tech terms naturally mix kar sakte ho. Bookish Hindi nahi — jaise ek padha-likha Indian naturally bolta hai."
+    : "Hinglish mein baat karo — jaise real urban Indians bolte hain. Roman script. Natural, friendly, NOT robotic. User ki tone match karo.";
 
-  return `Tu VSmart AI hai — ek intelligent Indian desktop assistant. Tu sirf chatbot nahi hai, tu actually real system actions leta hai Windows PC par.
+  return `Tu Iris hai — ek warm, intelligent Indian desktop assistant. Tu sirf chatbot nahi hai — tu actually real system actions leta/leti hai Windows PC par, aur naturally baat karta/karti hai jaise ek smart dost.
 
 TOOLS AVAILABLE:
 ${toolListForPrompt()}
 
 RESPONSE FORMAT — ZARURI:
-Sirf ek valid JSON object return karo. Pehle ya baad mein koi text nahi. No markdown.
+Sirf ek valid JSON object return karo. Pehle ya baad mein koi text nahi. No markdown fences.
 {"tool":"<name>","args":{...}}
 
 TOOL SELECTION GUIDE:
 - App/website/folder kholna → system_action, command="open <name>"
-- Volume/brightness/wifi/bluetooth/screenshot/media → system_action
+- Volume/brightness/wifi/bluetooth/screenshot/media controls → system_action
 - Code likhna/fix karna/project banana → coding_task
 - File dhundhna → file_search
 - Click/type/keyboard control → desktop_control
-- Screen dekhna → vision_analyze
-- User ki baat yaad rakhna/yaad karna → memory_save / memory_get
+- Screen dekhna/analyze karna → vision_analyze
+- User ki baat yaad rakhna → memory_save / memory_get
 - DANGEROUS kaam (restart/shutdown/delete all) → pehle request_confirmation
-- Sirf baat karna/jawab dena → final_reply
+- Sirf baat karna/jawab dena/question ka answer → final_reply
+
+IMPORTANT — CONTEXT AWARENESS:
+- Pichli baaton ka CONTEXT yaad rakh — agar user ne pehle kuch mention kiya hai, use connect karo.
+- Agar user short reply de raha hai jaise "haan", "theek hai", "woh wala" — pehle messages se context samjho.
+- Follow-up questions naturally handle karo — har baar fresh conversation mat maano.
 
 REPLY STYLE (final_reply ke "message" field ke liye):
-- Real Indian friend ki tarah bolo — warm, natural, conversational.
+- USER JO KEHE RAHA HAI USSE SUNO — unki exact request address karo.
 - Kaam hua? Khushi se bolo: "Ho gaya!", "Haan, khol diya!", "Le liya screenshot!"
 - Kuch fail hua? Clearly bolo kya hua aur kya kare: "Yaar, yeh nahi mila — [reason]. Try karo [X]?"
-- Confirmation chahiye? Naturally pucho: "Ek second — pakka restart karein? Kaam ka data save hai na?"
-- Max 2 sentences for simple tasks. Complex tasks mein thoda zyada theek hai.
-- AVOID: "I have successfully completed", "Done, Boss." — robotic templates bilkul nahi.
+- Confirmation chahiye? Naturally pucho: "Ek second — pakka restart karein? Kaam save hai na?"
+- Simple tasks: max 1-2 sentences. Complex mein thoda zyada theek hai.
+- AVOID: "I have successfully completed", "Done, Boss." — ye robotic laga hai, kabhi mat likhna.
+- Sound like a real person who genuinely helps — not reading from a script.
 - ${langInstr}
 ${mem}`;
 }
@@ -178,7 +185,7 @@ function extractJson(raw: string): { tool: string; args: Record<string, unknown>
 
 // ── Natural reply composer — varied, human-sounding ──────────────────────────
 // Used only for the direct (no-LLM) fast path. Gives different responses
-// so the assistant never sounds like a broken record.
+// so Iris never sounds like a broken record.
 function composeReply(tool: string, args: Record<string, unknown>, result: string, lang: ReplyLang): string {
   const hi  = lang === "hi";
   const cmd = String(args?.command ?? args?.request ?? "").toLowerCase();
@@ -193,49 +200,57 @@ function composeReply(tool: string, args: Record<string, unknown>, result: strin
         `Haan, ${target} khol diya!`,
         `${target} open ho gaya.`,
         `Lo, ${target} chalu kar diya.`,
+        `${target} ready hai.`,
       ];
       const opens_en = [
         `Opened ${target}!`,
         `There you go — ${target} is up.`,
-        `${target} launched!`,
+        `${target} is open now.`,
+        `Done, ${target} launched.`,
       ];
       const pool = hi ? opens_hi : opens_en;
       return pool[Math.floor(Math.random() * pool.length)];
     }
     if (/screenshot/i.test(cmd)) {
-      return hi ? `Screenshot le liya!` : `Screenshot taken!`;
+      const hi_pool = [`Screenshot le liya!`, `Ho gaya, screenshot save kar liya.`, `Screenshot ready hai.`];
+      const en_pool = [`Screenshot taken!`, `Got it, screenshot saved.`, `Screenshot done!`];
+      const p = hi ? hi_pool : en_pool;
+      return p[Math.floor(Math.random() * p.length)];
     }
     if (/volume|awaaz/i.test(cmd)) {
-      return hi ? `Volume set kar diya.` : `Volume adjusted!`;
+      return hi ? `Volume set kar diya.` : `Volume adjusted.`;
     }
     if (/brightness|chamak/i.test(cmd)) {
-      return hi ? `Brightness badal di.` : `Brightness updated!`;
+      return hi ? `Brightness badal di.` : `Brightness updated.`;
     }
     if (/wifi|wi-fi/i.test(cmd)) {
-      return hi ? `WiFi update kar diya.` : `WiFi updated!`;
+      return hi ? `WiFi update kar diya.` : `WiFi updated.`;
     }
     if (/bluetooth/i.test(cmd)) {
-      return hi ? `Bluetooth change kar diya.` : `Bluetooth updated!`;
+      return hi ? `Bluetooth change kar diya.` : `Bluetooth toggled.`;
     }
     if (/play|pause|next|skip/i.test(cmd)) {
-      return hi ? `Ho gaya.` : `Done!`;
+      const hi_pool = [`Ho gaya.`, `Kar diya.`];
+      const en_pool = [`Done!`, `Sure.`];
+      const p = hi ? hi_pool : en_pool;
+      return p[Math.floor(Math.random() * p.length)];
     }
     // Generic system action
-    const generic_hi = [`Ho gaya!`, `Kar diya.`, `Done!`];
-    const generic_en = [`Done!`, `All set!`, `Got it, done.`];
+    const generic_hi = [`Ho gaya!`, `Kar diya.`, `Done!`, `Haan, ho gaya.`];
+    const generic_en = [`Done!`, `All set.`, `Got it.`, `Sure, done.`];
     const gp = hi ? generic_hi : generic_en;
     return gp[Math.floor(Math.random() * gp.length)];
   }
 
   if (tool === "coding_task") {
-    const prefix_hi = [`Ho gaya! Yeh dekho:\n\n`, `Likh diya:\n\n`, `Ready hai:\n\n`];
-    const prefix_en = [`Done! Here it is:\n\n`, `Written! Check it out:\n\n`, `Ready:\n\n`];
+    const prefix_hi = [`Ho gaya! Yeh dekho:\n\n`, `Likh diya:\n\n`, `Ready hai:\n\n`, `Yeh raha:\n\n`];
+    const prefix_en = [`Done! Here it is:\n\n`, `Written — check this:\n\n`, `Ready:\n\n`, `Here you go:\n\n`];
     const pp = hi ? prefix_hi : prefix_en;
     return pp[Math.floor(Math.random() * pp.length)] + result;
   }
 
   if (tool === "desktop_control") {
-    return hi ? `Kar diya!` : `Done!`;
+    return hi ? `Kar diya.` : `Done.`;
   }
 
   if (tool === "file_search") {
@@ -303,7 +318,8 @@ export async function agenticRoute(
     const apiKey = await getApiKey();
     const msgs: ApiMessage[] = [
       { role:"system", content:sys },
-      ...turns.slice(0,-1).slice(-6).map(h => ({ role:h.role, content:h.content })),
+      // Send last 8 exchanges as context — enough for natural follow-ups
+      ...turns.slice(0,-1).slice(-8).map(h => ({ role:h.role, content:h.content })),
       { role:"user", content:message },
     ];
 

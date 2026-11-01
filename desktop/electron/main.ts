@@ -15,13 +15,16 @@ import{registerVisionIPC}from"./ipc/vision.js";
 import{registerFileSearchIPC}from"./ipc/fileSearch.js";
 import{registerDesktopControlIPC}from"./ipc/desktopControl.js";
 import{registerProjectIPC}from"./ipc/project.js";
-import{registerBrowserIPC}from"./ipc/browser.js";
+// browserIPC removed — Playwright not installed; shell.openExternal() used directly
+// import{registerBrowserIPC}from"./ipc/browser.js";
 import{registerFileIntelligenceIPC}from"./ipc/fileIntelligence.js";
-import{registerSchedulerIPC}from"./ipc/scheduler.js";
+// schedulerIPC removed — not needed for core voice assistant, reduces startup overhead
+// import{registerSchedulerIPC}from"./ipc/scheduler.js";
 import{initWhisper}from"./services/whisperService.js";
 import{promptLaunchPreferenceIfNeeded}from"./services/launchPreference.js";
 import{registerLaunchPrefIPC}from"./ipc/launchPref.js";
-import{initScheduler}from"./services/schedulerService.js";
+// initScheduler removed along with schedulerIPC
+// import{initScheduler}from"./services/schedulerService.js";
 
 let mainWindow:BrowserWindow|null=null;
 
@@ -68,7 +71,7 @@ promptLaunchPreferenceIfNeeded(mainWindow);
 
 setImmediate(()=>{
 initWhisper();
-initScheduler(()=>mainWindow);
+// initScheduler removed — scheduler not needed for core voice assistant
 });
 
 registerWindowIPC(()=>mainWindow);
@@ -81,9 +84,9 @@ registerVisionIPC();
 registerFileSearchIPC();
 registerDesktopControlIPC();
 registerProjectIPC();
-registerBrowserIPC();
+// registerBrowserIPC() removed — Playwright dep not installed
 registerFileIntelligenceIPC();
-registerSchedulerIPC();
+// registerSchedulerIPC() removed — reduces startup overhead
 
 ipcMain.handle(
 "open-system",
