@@ -51,8 +51,8 @@ interface SidebarItem {
 const SIDEBAR_KEY = "sidebar_settings";
 
 const DEFAULT_SIDEBAR: SidebarItem[] = [
-  { page: "dashboard",  label: "Home",      enabled: true },
-  { page: "jarvis",     label: "Iris AI",   enabled: true },
+  { page: "dashboard",  label: "Home",         enabled: true },
+  { page: "jarvis",     label: "VSmart AI",    enabled: true },
   { page: "vsmartchat", label: "VSmart Chat",  enabled: true },
   { page: "agents",     label: "Apps",         enabled: true },
   { page: "tasks",      label: "Files",        enabled: true },
@@ -200,12 +200,12 @@ export default function MainLayout() {
         <button
           className="ask-vind-pill"
           onClick={() => setJarvisPopup(v => !v)}
-          title="Iris AI"
+          title="VSmart AI"
         >
           <span className="ask-vind-icon-badge">
             <Sparkles size={15} />
           </span>
-          <span>Ask Iris</span>
+          <span>VSmart AI</span>
         </button>
         <button
           className={voice.listening ? "ask-vind-mic listening" : "ask-vind-mic"}

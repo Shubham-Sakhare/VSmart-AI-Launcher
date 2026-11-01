@@ -76,9 +76,9 @@ export default function JarvisPage({ voice, onRegisterVoiceHandler, popupMode, o
     void loadConversations();
   }, []);
 
-  // ── Iris greeting on first open (spoken aloud) ────────────────────────────
+  // ── VSmart greeting on first open (spoken aloud) ─────────────────────────
   useEffect(() => {
-    const key = "iris-greeted-today";
+    const key = "vsmart-greeted-today";
     const today = new Date().toDateString();
     if (sessionStorage.getItem(key) !== today) {
       sessionStorage.setItem(key, today);
@@ -86,10 +86,10 @@ export default function JarvisPage({ voice, onRegisterVoiceHandler, popupMode, o
       setTimeout(() => {
         const h = new Date().getHours();
         const greet =
-          h >= 5  && h < 12 ? "Good morning! Iris here — ready to help." :
-          h >= 12 && h < 17 ? "Hey! Iris online — what do you need?" :
-          h >= 17 && h < 21 ? "Good evening! Iris here." :
-          "Iris here — go ahead.";
+          h >= 5  && h < 12 ? "Good morning! VSmart here — ready to help." :
+          h >= 12 && h < 17 ? "Hey! VSmart online — what do you need?" :
+          h >= 17 && h < 21 ? "Good evening! VSmart here." :
+          "VSmart here — go ahead.";
         speak(greet, persona.language === "hi" ? "hi-IN" : "en-IN");
       }, 1500);
     }

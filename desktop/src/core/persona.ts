@@ -26,7 +26,6 @@ function timeGreeting(persona: Persona): string {
   if (h >= 17 && h < 21) return `Evening! ${name} here — how can I help you?`;
   return `${name} is up and running — go ahead, tell me what you need.`;
 }
-
 // ── Core personality ──────────────────────────────────────────────────────────
 function personalityBlock(persona: Persona): string {
   const toneMap = {

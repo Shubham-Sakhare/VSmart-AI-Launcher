@@ -43,7 +43,7 @@ export default function PersonaSettings() {
             className="psettings-input"
             value={draft.name}
             onChange={e => update("name", e.target.value)}
-            placeholder="Iris"
+            placeholder="VSmart AI"
             aria-label="Assistant name"
           />
         </div>
@@ -158,7 +158,7 @@ export default function PersonaSettings() {
         <h3 className="psettings-title">AI Provider</h3>
         <div className="provider-info">
           <p className="provider-note">
-            Iris prefers <strong>Ollama (local, free, offline)</strong> when available.
+            VSmart AI prefers <strong>Ollama (local, free, offline)</strong> when available.
             Falls back to <strong>OpenRouter (free tier)</strong> automatically.
           </p>
           <button

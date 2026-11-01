@@ -42,11 +42,11 @@ interface SidebarProps {
 }
 
 // Main navigation items.
-// "Iris" = JarvisPage (voice + agentic AI assistant, Jarvis-like).
+// "VSmart AI" = JarvisPage (voice + agentic AI assistant, Jarvis-like).
 // "VSmart Chat" = VSmartAIPage (pure ChatGPT-style LLM conversation).
 const NAV_ITEMS: { page: Page; icon: React.ReactNode; label: string }[] = [
   { page: "dashboard",  icon: <Home size={19} />,          label: "Home"        },
-  { page: "jarvis",     icon: <Bot size={19} />,            label: "Iris AI"     },
+  { page: "jarvis",     icon: <Bot size={19} />,            label: "VSmart AI"   },
   { page: "vsmartchat", icon: <Sparkles size={19} />,       label: "VSmart Chat" },
   { page: "agents",     icon: <Grid3x3 size={19} />,        label: "Apps"        },
   { page: "tasks",      icon: <FolderClosed size={19} />,   label: "Files"       },

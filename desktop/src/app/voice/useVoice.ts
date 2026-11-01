@@ -39,9 +39,9 @@ const WAKE_RESTART_MS         = 400;   // delay before restarting mic (wake mode
 const CONVERSATION_MS         = 15000; // follow-up window after a command (15s for natural back-and-forth)
 
 // ── Wake word variants ────────────────────────────────────────────────────────
-// Whisper mis-hears "Iris" and "VSmart" — accept common phonetic variants
+// Whisper mis-hears "VSmart" — accept common phonetic variants
 const WAKE_RE =
-  /\b(iris|i\.?\s*ris|hey\s*iris|ok\s*iris|okay\s*iris|iras|iress|v\.?\s*smart|vsmart|vismart|is\s*mart|es\s*mart|the\s*smart|we\s*smart|b\.?\s*smart|bsmart|hey\s*vsmart|ok\s*vsmart)\b/i;
+  /\b(v\.?\s*smart|vsmart|vismart|is\s*mart|es\s*mart|the\s*smart|we\s*smart|b\.?\s*smart|bsmart|hey\s*vsmart|ok\s*vsmart|okay\s*vsmart)\b/i;
 
 // ── Thinking fillers ──────────────────────────────────────────────────────────
 // Spoken immediately after Whisper returns so there's no silent gap while
