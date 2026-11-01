@@ -982,20 +982,7 @@ export default function TaskBar({ activePage, onNavigate, voice }: TaskBarProps)
         onMouseLeave={scheduleHide}
       >
         <div className="taskbar-dock">
-          <button
-            className={
-              activePage === HOME_PAGE ? "taskbar-icon active pulse" : "taskbar-icon"
-            }
-            onClick={() => onNavigate(HOME_PAGE)}
-            title={homeEntry.label}
-          >
-            {launcherState.customIcons[HOME_PAGE] ? (
-              <AppIcon src={launcherState.customIcons[HOME_PAGE]} size={18} />
-            ) : (
-              <VLogo size={20} />
-            )}
-            {activePage === HOME_PAGE && <span className="running-dot" />}
-          </button>
+          {/* V-logo Home button removed from taskbar — navigation now lives in the Sidebar */}
 
           {/* Internal app-page launcher icons removed from the taskbar —
               taskbar now shows system apps only. Page navigation lives

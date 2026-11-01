@@ -28,6 +28,11 @@ gap:15px;
 
 margin-bottom:35px;
 
+/* Pin logo to the top-left corner of the sidebar */
+align-self:flex-start;
+padding:0;
+margin-top:0;
+
 }
 
 .logo-circle{

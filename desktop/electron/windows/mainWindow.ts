@@ -12,6 +12,7 @@ export function createMainWindow(): BrowserWindow {
     frame: false,
     backgroundColor: "#050510",
     title: "VSmart AI",
+    skipTaskbar: true, // hide the V icon from the Windows taskbar
     webPreferences: {
       preload: path.join(__dirname, "../preload.js"),
       contextIsolation: true,
